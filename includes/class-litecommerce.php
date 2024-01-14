@@ -86,7 +86,7 @@ final class LiteCommerce{
         // Abstract Classes
 
         // Core Classes
-
+        include_once LC_ABSPATH . '/includes/class-lc-query.php';
         // Data Store
 
         // REST API
@@ -103,10 +103,12 @@ final class LiteCommerce{
             $this->is_rest_api_request() || $in_post_editor ){
                 $this->frontend_includes();
         }
+
+        $this->query = new LC_Query();
     }
 
     public function frontend_includes(){
-        
+        include_once LC_ABSPATH . '/includes/lc-notice-functions.php';
     }
 
     public function is_request( $type ){
@@ -141,13 +143,26 @@ final class LiteCommerce{
         add_action( 'after_setup_theme', array($this, 'setup_environment')); 
         add_action( 'after_setup_theme', array($this, 'include_template_functinos'));
         add_action('load-post.php', array($this, 'includes'));
-        // add_action('init', array($this, 'init'), 0);
-        // add_action('init', array( 'LC_Shortcodes','init'));
-        // add_action('init', array( 'LC_Emails','init_transactional_emails'));
-        // add_action( 'init', array( $this, 'add_image_sizes' ) );
-		// add_action( 'init', array( $this, 'load_rest_api' ) );
-		// add_action( 'init', array( 'LC_Site_Tracking', 'init' ) );
+        add_action('init', array($this, 'init'), 0);
+        add_action( 'init', array( $this, 'add_image_sizes' ) );
+		add_action( 'init', array( $this, 'load_rest_api' ) );
+        add_action( 'switch_blog', array( $this, 'wpdb_table_fix' ), 0 );
+		add_action( 'activated_plugin', array( $this, 'activated_plugin' ) );
+		add_action( 'deactivated_plugin', array( $this, 'deactivated_plugin' ) );
+		add_action( 'litecommerce_installed', array( $this, 'add_litecommerce_inbox_variant' ) );
+		add_action( 'litecommerce_updated', array( $this, 'add_litecommerce_inbox_variant' ) );
     }
+
+    public function wpdb_table_fix(){}
+    public function activated_plugin(){}
+    public function deactivated_plugin(){}
+    public function add_litecommerce_inbox_variant(){}
+
+    public function init(){}
+    public function add_image_sizes(){}
+
+    public function load_rest_api(){}
+
 
     public function setup_environment(){
         $this->define( 'LC_TEMPLATE_PATH', $this->template_path() );
