@@ -92,8 +92,7 @@ final class LiteCommerce{
         // REST API
 
         // Tracks.
-
-        if ($this->is_request( 'admin ')){
+        if($this->is_request('admin')){
             include_once LC_ABSPATH . '/includes/admin/class-lc-admin.php';
         }
 
@@ -111,7 +110,7 @@ final class LiteCommerce{
         include_once LC_ABSPATH . '/includes/lc-notice-functions.php';
     }
 
-    public function is_request( $type ){
+    private function is_request( $type ){
         switch( $type ){
             case 'admin': 
                 return is_admin();
