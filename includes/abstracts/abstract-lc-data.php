@@ -207,4 +207,3 @@ abstract class LC_Data{
     }
 
 }
-
