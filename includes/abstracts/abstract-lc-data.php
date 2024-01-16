@@ -251,8 +251,72 @@ abstract class LC_Data{
         } 
     }
 
-    public function update_meta_data(){
-        
+    public function delete_meta_data_value( $key, $value){
+        $this->maybe_read_meta_data();
+        $array_keys = array_keys( wp_list_pluck( 
+            $this->meta_data, 'key'
+        ), $key, true );
+
+        if( $array_keys ){
+            foreach( $array_keys as $array_key ){
+                if( $value === $this->meta_data[$array_key]->value ){
+                    $this->meta_data[$array_key]->value = null;
+                }
+            }
+        }
+    }
+
+    public function delete_meta_data_by_mid($mid){
+        $this->maybe_read_meta_data();
+        $array_keys = array_keys( wp_list_pluck( $this->meta_data, 
+        'id'), (int) $mid, true);
+
+        if( $array_keys ){
+            foreach( $array_keys as $array_key){
+                $this->meta_data[$array_key]->value = null;
+            }
+        }
+    }
+
+    public function update_meta_data( $key, $value, $meta_id = 0){
+        if( $this->is_internal_meta_key( $key )){
+            $function = 'set_' . ltrim( $key, '_');
+            if( is_callable( $this, $function)){
+                return $this->{$function}($value);
+            }
+        }
+
+        $this->maybe_read_meta_data();
+        $array_key = false; 
+
+        if($meta_id){
+            $array_keys = array_keys( wp_list_pluck(
+                $this->meta_data, 'id'
+            ), $meta_id, true);
+            $array_key = $array_keys ? current( $array_keys ) : false;
+        }else{
+            $matches = array();
+            foreach( $this->meta_data as $meta_data_array_key => $meta ){
+                if( $meta->key === $key ){
+                    $matches[] = $meta_data_array_key;
+                }
+            }
+
+            if( !empty( $matches )){
+                foreach( $matches as $meta_data_array_key){
+                    $this->meta_data[ $meta_data_array_key]->value = null;
+                }
+                $array_key = current( $matches );
+            }
+        }
+
+        if( false !== $array_key ){
+            $meta = $this->meta_data[ $array_key];
+            $meta->key = $key;
+            $meta->value = $value;
+        }else{
+            $this->add_meta_data( $key, $value, true );
+        }
     }
 
     public function get_meta_data(){
