@@ -380,6 +380,41 @@ abstract class LC_Data{
             );
         }
     }
+
+    public function save_meta_data(){
+        if( ! $this->data_store || is_null($this->meta_data)){
+            return;
+        }
+        foreach( $this->meta_data as $array_key => $meta) {
+            if( is_null( $meta->value )){
+                if( !empty( $meta->id )){
+                    $this->data_store->delete_meta(
+                        $this, $meta
+                    );
+                    do_action( "deleted_{$this->object_type}_meta", $meta->id, $this->get_id(), $meta->key, $meta->value);
+
+                    unset( $this->meta_data[$array_key]);
+                }
+            }elseif (empty( $meta->id)){
+                $meta->id = $this->data_store->add_meta($this, $meta);
+                do_action( "added_{$this->object_type}_meta", $meta->id, $this->get_id(), $meta->key, $meta->value);
+                $meta->apply_changes();
+            }else{
+                if( $meta->get_changes()){
+                    $this->data_store->update_meta($this, $meta);
+                    do_action( "updated_{$this->object_type}_meta", $meta->id, $this->get_id(), $meta->key, $meta->value);
+                    $meta->apply_changes();
+                }
+            }
+        }
+
+        if(!empty( $this->cache_group)){
+            $cache_key = self::generate_meta_cache_key(
+                $this->get_id(), $this->cache_group
+            );
+            wp_cache_delete( $cache_key, $this->cache_group);
+        }
+    }
     
     public function get_meta_cache_key(){
         if( !$this->get_id()){
@@ -400,6 +435,16 @@ abstract class LC_Data{
     ){
         return 
         LC_Cache_Helper::get_cache_prefix($cache_group) . LC_Cache_Helper::get_cache_prefix('object_' . $id) . 'object_meta_' . $id;
+    }
+
+    public static function prime_raw_meta_data_cache(
+        $raw_meta_data_collection, $cache_group
+    ){
+        foreach( $raw_meta_data_collection as $object_id => $raw_meta_data_array){
+            $cache_key = self::generate_meta_cache_key(
+                $object_id, $cache_group );
+            wp_cache_set( $cache_key, $raw_meta_data_array, $cache_group);
+        }
     }
 
     public function set_id( $id){
