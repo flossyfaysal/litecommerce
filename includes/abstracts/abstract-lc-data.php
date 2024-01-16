@@ -115,6 +115,85 @@ abstract class LC_Data{
         return array_merge( array( 'id' => $this->get_id()), $this->data, array( 'meta_data' => $this->get_meta_data()));
     }
 
+    public function get_data_keys(){
+        return array_keys( $this->data );
+    }
+
+    public function get_extra_data_keys(){
+        return array_keys( $this->extra_data);
+    }
+
+    protected function filter_null_meta( $meta ){
+        return ! is_null( $meta->value );
+    }
+
+    public function get_meta_data(){
+        $this->maybe_read_meta_data();
+        return array_values( array_filter(
+            $this->meta_data, array( $this, 
+            'filter_null_meta')
+        ));
+    }
+
+    protected function is_internal_meta_key( $key ){
+        $internal_meta_key = ! empty( $key ) && 
+        $this->data_store && 
+        in_array( 
+            $key, 
+            $this->data_store->get_internal_meta_keys(), 
+            true
+        );
+
+        if( ! $internal_meta_key ){
+            return false;
+        }
+
+        $has_setter_or_getter = is_callable( array( $this, 'set_' . ltrim( $key, '_')));
+
+        if( ! $has_setter_or_getter ){
+            return false;
+        }
+
+        if( in_array( $key, 
+        $this->legacy_datastore_props, true )){
+            return true;
+        }
+
+        return true; 
+    }
+
+    public function get_meta( $key = '', $single = true, $context = 'view'){
+        if( $this->is_internal_meta_key($key) ){
+            $function = 'get_' . ltrim( $key, '_');
+
+            if( is_callable( array($this, $function) )){
+                return $this->{$function}();
+            }
+        }
+
+        $this->maybe_read_meta_data();
+        $meta_data = $this->get_meta_data();
+        $array_keys = array_keys( 
+            wp_list_pluck($meta_data, 'key'),
+            $key, true
+        );
+        $value = $single ? '' : array();
+
+        if( !empty( $array_keys )){
+            if( $single ){
+                $value = $meta_data[ current(
+                    $array_keys
+                )]->value;
+            }else{
+                $value = array_intersect_key( $meta_data, array_flip( $array_keys));
+            }
+        }
+
+        if( $view === $context ){
+            $value = apply_filter( $this->get_hook_prefix() . $key, $value, $this);
+        }
+    }
+
     public function get_meta_data(){
         $this->maybe_read_meta_data();
     }
@@ -188,7 +267,7 @@ abstract class LC_Data{
         }
         return self::generate_meta_cache_key(
             $this->get_id(), $this->cache_group
-        )
+        );
     }
 
     public static generate_meta_cache_key(
