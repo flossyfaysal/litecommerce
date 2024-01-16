@@ -189,9 +189,70 @@ abstract class LC_Data{
             }
         }
 
-        if( $view === $context ){
+        if( 'view' === $context ){
             $value = apply_filter( $this->get_hook_prefix() . $key, $value, $this);
         }
+    }
+
+    public function meta_exists( $key ){
+        $this->maybe_read_meta_data();
+        $array_keys = wp_list_pluck( $this->get_meta_data(), 'key');
+        return in_array( $key, $array_keys, true );
+    }
+
+    public function set_meta_data( $data ){
+        if( ! empty( $data) && is_array($data)){
+            $this->maybe_read_meta_data();
+            foreach( $data as $meta) {
+                $meta = (array) $meta;
+                if( isset( $meta['key'], $meta['value'], $meta['id'])){
+                    $this->meta_data[] = new LC_Meta_Data(
+                        array(
+                            'id' => $meta['id'],
+                            'key' => $meta['key'],
+                            'value' => $meta['value'],
+                        )
+                    );
+                }
+            }
+        }
+
+    }
+
+    public function add_meta_data( $key, $value, $unique = false){
+        if( $this->is_internal_meta_key( $key )){
+            $function = 'set_' . ltrim( $key, '_' );
+            if( is_callable( array( $this, $function))){
+                return $this->{$function}($value);
+            }
+        }
+
+        $this->maybe_read_meta_data();
+        if( $unique ){
+            $this->delete_meta_data($key);
+        }
+
+        $this->meta_data[] = new LC_Meta_Data(
+            array(
+                'key' => $key,
+                'value' => $value,
+            )
+        );
+    }
+
+    public function delete_meta_data( $key ){
+        $this->maybe_read_meta_data();
+        $array_keys = array_keys( wp_list_pluck(
+            $this->meta_data, 'key'), $key, true);
+        if( $array_keys ){
+            foreach( $array_keys as $array_key ){
+                $this->meta_data[ $array_key ]->value = null;
+            }
+        } 
+    }
+
+    public function update_meta_data(){
+        
     }
 
     public function get_meta_data(){
