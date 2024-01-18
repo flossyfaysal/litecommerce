@@ -199,10 +199,254 @@ class LC_Data_Store_WP
                     );
                 }
             } else {
-                // lets do it later..
+                $key_mapping = array(
+                    'parent' => 'post_parent',
+                    'parent_exclude' => 'post_parent__not_in',
+                    'exclude' => 'post__not_in',
+                    'limit' => 'posts_per_page',
+                    'type' => 'post_type',
+                    'return' => 'fields',
+                );
+
+                if (isset($key_mapping[$key])) {
+                    $wp_query_args[$key_mapping[$key]] = $value;
+                } else {
+                    $wp_query_args[$key] = $value;
+                }
             }
         }
+        return apply_filters('litecommerce_get_wp_query_args', $wp_query_args, $query_vars);
     }
+
+    public function parse_date_for_wp_query($query_var, $key, $wp_query_args = array())
+    {
+        $query_parse_regex = '/([^.<>]*)(>=|<=|>|<|\.\.\.)([^.<>]+)/';
+        $valid_operators = array('>', '>=', '=', '<=', '<', '...');
+        $precision = 'second';
+        $dates = array();
+        $operator = '=';
+
+        try {
+            if (is_a($query_var, 'LC_DateTime')) {
+                $dates[] = $query_var;
+            } elseif (is_numeric($query_var)) {
+                $dates[] = new LC_DateTime("@{$query_var}", new DateTimeZone('UTC'));
+            } elseif (preg_match($query_parse_regex, $query_var, $sections)) {
+                if (!empty($sections[1])) {
+                    $dates[] = is_numeric($sections[1]) ? new WC_DateTime("@{$sections[1]}", new DateTimeZone('UTC')) : lc_string_to_datetime($sections[1]);
+                }
+                $operator = in_array($sections[2], $valid_operators, true) ? $sections[2] : '';
+                $dates[] = is_numeric($sections[3]) ? new WC_DateTime("@{$sections[3]}", new DateTimeZone('UTC')) : lc_string_to_datetime($sections[3]);
+
+                if (!is_numeric($sections[1]) && !is_numeric($sections[3])) {
+                    $precision = 'day';
+                }
+            } else {
+                $dates[] = lc_string_to_datetime($query_var);
+                $precision = 'day';
+            }
+        } catch (Exception $e) {
+            return $wp_query_args;
+        }
+
+        if (!$operator || empty($dates) || ('...' === $operator && count($dates) < 2)) {
+            return $wp_query_args;
+        }
+
+        if ('post_date' === $key || 'post_modified' === $key) {
+            if (!isset($wp_query_args['date_query'])) {
+                $wp_query_args['date_query'] = array();
+            }
+
+            $query_arg = array(
+                'column' => 'day' === $precision ? $key : $key . '_gmt',
+                'inclusive' => '>' !== $operator && '<' !== $operator,
+            );
+
+            // Add 'before'/'after' query args.
+            $comparisons = array();
+            if ('>' === $operator || '>=' === $operator || '...' === $operator) {
+                $comparisons[] = 'after';
+            }
+            if ('<' === $operator || '<=' === $operator || '...' === $operator) {
+                $comparisons[] = 'before';
+            }
+
+            foreach ($comparisons as $index => $comparison) {
+                if ('day' === $precision) {
+                    $query_arg[$comparison]['year'] = $dates[$index]->date('Y');
+                    $query_arg[$comparison]['month'] = $dates[$index]->date('n');
+                    $query_arg[$comparison]['day'] = $dates[$index]->date('j');
+                } else {
+                    $query_arg[$comparison] = gmdate('m/d/Y H:i:s', $dates[$index]->getTimestamp());
+                }
+            }
+
+            if (empty($comparisons)) {
+                $query_arg['year'] = $dates[0]->date('Y');
+                $query_arg['month'] = $dates[0]->date('n');
+                $query_arg['day'] = $dates[0]->date('j');
+                if ('second' === $precision) {
+                    $query_arg['hour'] = $dates[0]->date('H');
+                    $query_arg['minute'] = $dates[0]->date('i');
+                    $query_arg['second'] = $dates[0]->date('s');
+                }
+            }
+            $wp_query_args['date_query'][] = $query_arg;
+            return $wp_query_args;
+        }
+
+        if (!isset($wp_query_args['meta_query'])) {
+            $wp_query_args['meta_query'] = array();
+        }
+
+        if ('day' === $precision) {
+            $start_timestamp = strtotime(gmdate('m/d/Y 00:00:00', $dates[0]->getTimestamp()));
+            $end_timestamp = '...' !== $operator ? ($start_timestamp + DAY_IN_SECONDS) : strtotime(gmdate('m/d/Y 00:00:00', $dates[1]->getTimestamp()));
+            switch ($operator) {
+                case '>':
+                case '<=':
+                    $wp_query_args['meta_query'][] = array(
+                        'key' => $key,
+                        'value' => $end_timestamp,
+                        'compare' => $operator,
+                    );
+                    break;
+                case '<':
+                case '>=':
+                    $wp_query_args['meta_query'][] = array(
+                        'key' => $key,
+                        'value' => $start_timestamp,
+                        'compare' => $operator,
+                    );
+                    break;
+                default:
+                    $wp_query_args['meta_query'][] = array(
+                        'key' => $key,
+                        'value' => $start_timestamp,
+                        'compare' => '>=',
+                    );
+                    $wp_query_args['meta_query'][] = array(
+                        'key' => $key,
+                        'value' => $end_timestamp,
+                        'compare' => '<=',
+                    );
+            }
+        } else {
+            if ('...' !== $operator) {
+                $wp_query_args['meta_query'][] = array(
+                    'key' => $key,
+                    'value' => $dates[0]->getTimestamp(),
+                    'compare' => $operator,
+                );
+            } else {
+                $wp_query_args['meta_query'][] = array(
+                    'key' => $key,
+                    'value' => $dates[0]->getTimestamp(),
+                    'compare' => '>=',
+                );
+                $wp_query_args['meta_query'][] = array(
+                    'key' => $key,
+                    'value' => $dates[1]->getTimestamp(),
+                    'compare' => '<=',
+                );
+            }
+        }
+
+        return $wp_query_args;
+    }
+
+    public function get_internal_meta_keys()
+    {
+        return $this->internal_meta_keys;
+    }
+
+    protected function get_valid_search_terms($terms)
+    {
+        $valid_terms = array();
+        $stopwords = $this->get_search_stopwords();
+
+        foreach ($terms as $term) {
+            if (preg_match('/^".+"$/', $term)) {
+                $term = trim($term, "\"'");
+            } else {
+                $term = trim($term, "\"' ");
+            }
+
+            if (empty($term) || (1 == strlen($term) && preg_match('/^[a-z\-]/i', $term))) {
+                continue;
+            }
+
+            if (in_array(lc_strtolower($term), $stopwords, true)) {
+                continue;
+            }
+
+            $valid_terms[] = $term;
+        }
+
+        return $valid_terms;
+    }
+
+    protected function get_search_stopwords()
+    {
+        $stopwords = array_map(
+            'lc_strtolower',
+            array_map(
+                'trmi',
+                explode(
+                    ',',
+                    _x(
+                        'about,an,are,as,at,be,by,com,for,from,how,in,is,it,on,or,what,who,will,when,with,www.',
+                        'Comma-sepearted list of search stopwords in your language',
+                        'litecommerce'
+                    )
+                )
+            )
+        );
+
+        return apply_filters(
+            'wp_search_stopwords',
+            $stopwords
+        );
+    }
+
+    protected function get_data_for_lookup_table($id, $table)
+    {
+        return array();
+    }
+
+    protected function get_primary_key_for_lookup_table($table)
+    {
+        return '';
+    }
+
+    protected function update_lookup_table($id, $table)
+    {
+        global $wpdb;
+        $id = absint($id);
+        $table = sanitize_key($table);
+
+        if (empty($id) || empty($table)) {
+            return false;
+        }
+
+        $existing_data = wp_cache_get('lookup_table', 'object_' . $id);
+        $update_data = $this->get_data_for_lookup_table(
+            $id,
+            $table
+        );
+
+        if (!empty($update_data) && $update_data !== $existing_data) {
+            $wpdb->replace(
+                $wpdb->$table,
+                $update_data
+            );
+            wp_cache_set('lookup_table', $update_data, 'object_' . $id);
+        }
+    }
+
+
+
 
 
 
