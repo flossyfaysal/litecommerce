@@ -445,10 +445,30 @@ class LC_Data_Store_WP
         }
     }
 
+    public function delete_from_lookup_table($id, $table)
+    {
+        global $wpdb;
 
+        $id = absint($id);
+        $table = sanitize_key($table);
 
+        if (empty($id) || empty($table)) {
+            return false;
+        }
 
+        $pk = $this->get_primary_key_for_lookup_table($table);
 
+        $wpdb->delete(
+            $wpdb->$table,
+            array($pk => $id)
+        );
+        wp_cache_delete('lookup_table', 'object_' . $id);
+    }
+
+    protected function string_to_timestamp($time_string)
+    {
+        return '0000-00-00 00:00' !== $time_string ? lc_string_to_timestamp($time_string) : null;
+    }
 
 }
 
