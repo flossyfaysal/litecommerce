@@ -1,4 +1,5 @@
 <?php
+use Automattic\WooCommerce\Internal\DownloadPermissionsAdjuster;
 
 /**
  * LC_Product_Data_Store_CPT class file.
@@ -202,8 +203,126 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
 
             $product->read_meta_data(true);
         } else {
-            // will do later...
+            $GLOBALS['wpdb']->update(
+                $GLOBALS['wpdb']->posts,
+                array(
+                    'post_modified' => current_time(
+                        'mysql'
+                    ),
+                    'post_modified_gmt' => current_time(
+                        'mysql',
+                        1
+                    ),
+                    array(
+                        'ID' => $product->get_id(),
+                    )
+                )
+            );
+            clean_post_cache($product->get_id());
         }
+
+        $this->update_post_meta($product);
+        $this->update_terms($product);
+        $this->update_visibility($product);
+        $this->update_attributes($product);
+        $this->update_version_and_type($product);
+        $this->handle_updated_props($product);
+        $this->clear_caches($product);
+
+        lc_get_container()->get(
+            DownloadPermissionsAdjuster::class
+        )->maybe_schedule_adjust_download_permissions($product);
+
+        do_action('litecommerce_update_product', $product->get_id(), $product);
+
+    }
+
+    public function delete(&$procuct, $args = array())
+    {
+        $id = $product->get_id();
+        $post_type = $product->is_type(
+            'variation'
+        ) ? 'product_variation' : 'product';
+
+        $args = wp_parse_args(
+            $args,
+            array(
+                'force_delete' => false,
+            )
+        );
+
+        if (!$id) {
+            return;
+        }
+
+        if ($args['force_delete']) {
+            do_action('litecommerce_before_delete_' . $post_type, $id);
+            wp_delete_post($id);
+            $product->set_id(0);
+            do_action('litecommerce_delete_' . $post_type, $id);
+        } else {
+            wp_trash_post($id);
+            $product->set_status('trash');
+            do_action('litecommerce_trash_' . $post_type, $id);
+        }
+    }
+
+    protected function read_product_data(&$product)
+    {
+        $id = $product->get_id();
+        $post_meta_values = get_post_meta($id);
+        $meta_key_to_props = array(
+            '_sku' => 'sku',
+            '_regular_price' => 'regular_price',
+            '_sale_price' => 'sale_price',
+            '_price' => 'price',
+            '_sale_price_dates_from' => 'date_on_sale_from',
+            '_sale_price_dates_to' => 'date_on_sale_to',
+            'total_sales' => 'total_sales',
+            '_tax_status' => 'tax_status',
+            '_tax_class' => 'tax_class',
+            '_manage_stock' => 'manage_stock',
+            '_backorders' => 'backorders',
+            '_low_stock_amount' => 'low_stock_amount',
+            '_sold_individually' => 'sold_individually',
+            '_weight' => 'weight',
+            '_length' => 'length',
+            '_width' => 'width',
+            '_height' => 'height',
+            '_upsell_ids' => 'upsell_ids',
+            '_crosssell_ids' => 'cross_sell_ids',
+            '_purchase_note' => 'purchase_note',
+            '_default_attributes' => 'default_attributes',
+            '_virtual' => 'virtual',
+            '_downloadable' => 'downloadable',
+            '_download_limit' => 'download_limit',
+            '_download_expiry' => 'download_expiry',
+            '_thumbnail_id' => 'image_id',
+            '_stock' => 'stock_quantity',
+            '_stock_status' => 'stock_status',
+            '_wc_average_rating' => 'average_rating',
+            '_wc_rating_count' => 'rating_counts',
+            '_wc_review_count' => 'review_count',
+            '_product_image_gallery' => 'gallery_image_ids',
+        );
+
+        $set_props = array();
+
+        foreach ($meta_key_to_props as $meta_key => $prop) {
+            $meta_value = isset(
+                $post_meta_values[$meta_key][0]) ? $post_meta_values[$meta_key][0] : null;
+
+            $set_props[$prop] = maybe_unserialize(
+                $meta_value
+            );
+        }
+
+        $set_props['category_ids'] = $this->get_term_ids($product, 'product_cat');
+        $set_props['tag_ids'] = $this->get_term_ids($product, 'product_tag');
+        $set_props['shipping_class_id'] = current($this->get_term_ids($product, 'product_shipping_class'));
+        $set_props['gallery_image_ids'] = array_filter(explode(',', $set_props['gallery_image_ids'] ?? ''));
+
+        $product->set_props($set_props);
 
     }
 
