@@ -509,22 +509,8 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
                 case 'stock_quantity':
                     // Fire actions to let 3rd parties know the stock is about to be changed.
                     if ($product->is_type('variation')) {
-                        /**
-                         * Action to signal that the value of 'stock_quantity' for a variation is about to change.
-                         *
-                         * @since 4.9
-                         *
-                         * @param int $product The variation whose stock is about to change.
-                         */
                         do_action('woocommerce_variation_before_set_stock', $product);
                     } else {
-                        /**
-                         * Action to signal that the value of 'stock_quantity' for a product is about to change.
-                         *
-                         * @since 4.9
-                         *
-                         * @param int $product The product whose stock is about to change.
-                         */
                         do_action('woocommerce_product_before_set_stock', $product);
                     }
                     break;
@@ -561,6 +547,76 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
         }
     }
 
+    protected function handle_updated_props(&$product)
+    {
+        $price_is_synced = $product->is_type(
+            array(
+                'variable',
+                'grouped'
+            )
+        );
+        if (!$price_is_synced) {
+            if (in_array('regular_price', $this->updated_props, true) || in_array('sale_price', $this->updated_props, true)) {
+                if ($product->get_sale_price('edit') >= $product->get_regular_price('edit')) {
+                    update_post_meta($product->get_id(), '_sale_price', '');
+                    $product->set_sale_price('');
+                }
+            }
+
+            if (in_array('date_on_sale_from', $this->updated_props, true) || in_array('date_on_sale_to', $this->updated_props, true) || in_array('regular_price', $this->updated_props, true) || in_array('sale_price', $this->updated_props, true)) {
+                if ($product->is_on_sale('edit')) {
+                    update_post_meta($product->get_id(), '_price', $product->get_sale_price('edit'));
+                    $product->set_price($product->get_sale_price('edit'));
+                } else {
+                    update_post_meta($product->get_id(), '_price', $product->get_regular_price('edit'));
+                    $product->set_price($product->get_regular_price('edit'));
+                }
+            }
+        }
+
+        if (in_array('stock_quantity', $this->updated_props, true)) {
+            if ($product->is_type('variation')) {
+                do_action('litecommerce_variation_set_stock', $product);
+            } else {
+                do_action('litecommerce_product_set_stock', $product);
+            }
+        }
+
+        if (in_array('stock_status', $this->updated_props, true)) {
+            if ($product->is_type('variation')) {
+                do_action(
+                    'litecommerce_variation_set_stock_status',
+                    $product->get_id(),
+                    $product->get_stock_status(),
+                    $product
+                );
+            } else {
+                do_action(
+                    'litecommerce_product_set_stock_status',
+                    $product->get_id(),
+                    $product->get_stock_status(),
+                    $product
+                );
+            }
+        }
+
+        if (array_intersect($this->updated_props, array('sku', 'regular_price', 'sale_price', 'date_on_sale_from', 'date_on_sale_to', 'total_sales', 'average_rating', 'stock_quantity', 'stock_status', 'manage_stock', 'downloadable', 'virtual', 'tax_status', 'tax_class'))) {
+            $this->update_lookup_table($product->get_id(), 'lc_product_meta_lookup');
+        }
+
+        do_action(
+            'litecommerce_product_object_updated_props',
+            $product,
+            $this->updated_props
+        );
+
+        $this->updated_props = array();
+    }
+
+    protected function update_terms(&$procuct, $force = false)
+    {
+
+    }
 
 
 }
