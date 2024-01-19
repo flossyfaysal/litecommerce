@@ -326,4 +326,241 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
 
     }
 
+    public function read_stock_quantity(&$product, $new_stock)
+    {
+        $object_read = $product->get_object_read();
+        $product->set_object_read(false);
+        $product->set_stock_quantity(
+            is_null(
+                $new_stock
+            ) ? get_post_meta($product->get_id(), '_stock', true) : $new_stock
+        );
+        $product->set_object_read($object_read);
+    }
+
+    protected function read_visibility(&$product)
+    {
+        $terms = get_the_terms(
+            $product->get_id(),
+            'product_visibility'
+        );
+        $term_names = is_array($terms) ? wp_list_pluck(
+            $terms,
+            'name'
+        ) : array();
+        $featured = in_array('featured', $term_names, true);
+        $exclude_search = in_array('exclude-from-search', $term_names, true);
+        $exclude_catalog = in_array('exclude-from-catalog', $term_names, true);
+
+        if ($exclude_search && $exclude_catalog) {
+            $catalog_visibility = 'hidden';
+        } elseif ($exclude_search) {
+            $catalog_visibility = 'catalog';
+        } elseif ($exclude_catalog) {
+            $catalog_visibility = 'search';
+        } else {
+            $catalog_visibility = 'visible';
+        }
+
+        $product->set_props(
+            array(
+                'featured' => $featured,
+                'catalog_visibility' => $catalog_visibility
+            )
+        );
+    }
+
+    /**
+     * Read attributes from post meta.
+     * 
+     * @param LC_Product $product Product object.
+     */
+
+    protected function read_attributes(&$product)
+    {
+        $meta_attributes = get_post_meta($product->get_id(), '_product_attributes', true);
+
+        if (!empty($meta_attributes) && is_array($meta_attributes)) {
+            $attributes = array();
+            foreach ($meta_attributes as $meta_attribute_key => $meta_attribute_value) {
+                $meta_value = array_merge(
+                    array(
+                        'name' => '',
+                        'value' => '',
+                        'position' => 0,
+                        'is_visible' => 0,
+                        'is_variation' => 0,
+                        'is_taxonomy' => 0,
+                    ),
+                    (array) $meta_attribute_value
+                );
+
+                if (!empty($meta_value['is_taxonomy'])) {
+                    if (!taxonomy_exists($meta_value['name'])) {
+                        continue;
+                    }
+                    $id = lc_attribute_taxonomy_id_by_name(
+                        $meta_value['name']
+                    );
+                    $options = lc_get_object_terms(
+                        $product->get_id(),
+                        $meta_value['name'],
+                        'term_id'
+                    );
+                } else {
+                    $id = 0;
+                    $options = lc_get_text_attributes(
+                        $meta_value['name']
+                    );
+                }
+
+                $attributes = new LC_Product_Attributes();
+                $attributes->set_id($id);
+                $attributes->set_name($meta_value['name']);
+                $attributes->set_options($options);
+                $attributes->position($meta_value['position']);
+                $attributes->set_variation($meta_value['is_variation']);
+                $attributes->set_visible($meta_value['is_variation']);
+                $attributes[] = $attributes;
+            }
+            $product->set_attributes($attributes);
+        }
+    }
+
+    protected function read_downloads(&$product)
+    {
+        $meta_values = array_filter((array) get_post_meta($product->get_id(), '_downloadable_files', true));
+        if ($meta_values) {
+            foreach ($meta_values as $key => $value) {
+                if (!isset($value['name'], $value['file'])) {
+                    continue;
+                }
+                $download = new LC_Product_Download();
+                $download->set_id($key);
+                $download->set_name($value['name'] ? $value['name'] : lc_get_filename_from_url($value['file']));
+                $download->set_file(apply_filters('litecommerce_file_download_path', $value['file'], $product, $key));
+                $downloads[] = $download;
+            }
+            $product->set_downloads($download);
+        }
+    }
+
+    protected function update_post_meta(&$product, $force = false)
+    {
+        $meta_key_to_props = array(
+            '_sku' => 'sku',
+            '_regular_price' => 'regular_price',
+            '_sale_price' => 'sale_price',
+            '_sale_price_dates_from' => 'date_on_sale_from',
+            '_sale_price_dates_to' => 'date_on_sale_to',
+            'total_sales' => 'total_sales',
+            '_tax_status' => 'tax_status',
+            '_tax_class' => 'tax_class',
+            '_manage_stock' => 'manage_stock',
+            '_backorders' => 'backorders',
+            '_low_stock_amount' => 'low_stock_amount',
+            '_sold_individually' => 'sold_individually',
+            '_weight' => 'weight',
+            '_length' => 'length',
+            '_width' => 'width',
+            '_height' => 'height',
+            '_upsell_ids' => 'upsell_ids',
+            '_crosssell_ids' => 'cross_sell_ids',
+            '_purchase_note' => 'purchase_note',
+            '_default_attributes' => 'default_attributes',
+            '_virtual' => 'virtual',
+            '_downloadable' => 'downloadable',
+            '_product_image_gallery' => 'gallery_image_ids',
+            '_download_limit' => 'download_limit',
+            '_download_expiry' => 'download_expiry',
+            '_thumbnail_id' => 'image_id',
+            '_stock' => 'stock_quantity',
+            '_stock_status' => 'stock_status',
+            '_wc_average_rating' => 'average_rating',
+            '_wc_rating_count' => 'rating_counts',
+            '_wc_review_count' => 'review_count',
+        );
+
+        $extra_data_keys = $product->get_extra_data_keys();
+
+        foreach ($extra_data_keys as $key) {
+            $meta_key_to_props['_' . $key] = $key;
+        }
+
+        $props_to_update = $force ? $meta_key_to_props : $this->get_props_to_update($product, $meta_key_to_props);
+
+        foreach ($props_to_update as $meta_key => $prop) {
+            $value = $product->{"get_$prop"}('edit');
+            $value = is_string($value) ? wp_slash($value) : $value;
+            switch ($prop) {
+                case 'virtual':
+                case 'downloadable':
+                case 'manage_stock':
+                case 'sold_individually':
+                    $value = lc_bool_to_string($value);
+                    break;
+                case 'gallery_image_ids':
+                    $value = implode(',', $value);
+                    break;
+                case 'date_on_sale_from':
+                case 'date_on_sale_to':
+                    $value = $value ? $value->getTimestamp() : '';
+                    break;
+                case 'stock_quantity':
+                    // Fire actions to let 3rd parties know the stock is about to be changed.
+                    if ($product->is_type('variation')) {
+                        /**
+                         * Action to signal that the value of 'stock_quantity' for a variation is about to change.
+                         *
+                         * @since 4.9
+                         *
+                         * @param int $product The variation whose stock is about to change.
+                         */
+                        do_action('woocommerce_variation_before_set_stock', $product);
+                    } else {
+                        /**
+                         * Action to signal that the value of 'stock_quantity' for a product is about to change.
+                         *
+                         * @since 4.9
+                         *
+                         * @param int $product The product whose stock is about to change.
+                         */
+                        do_action('woocommerce_product_before_set_stock', $product);
+                    }
+                    break;
+            }
+            $updated = $this->update_or_delete_post_meta($product, $meta_key, $value);
+
+            if ($updated) {
+                $this->updated_props[] = $prop;
+            }
+        }
+
+        if (!$this->extra_data_saved) {
+            foreach ($extra_data_keys as $key) {
+                $meta_key = '_' . $key;
+                $function = 'get_' . $key;
+                if (!array_key_exists($meta_key, $props_to_update)) {
+                    continue;
+                }
+
+                if (is_callable(array($product, $function))) {
+                    $value = $product->{$function}('edit');
+                    $value = is_string($value) ? wp_slash($value) : $value;
+                    $updated = $this->update_or_delete_post_meta($product, $meta_key, $value);
+
+                    if ($updated) {
+                        $this->updated_props[] = $key;
+                    }
+                }
+            }
+        }
+
+        if ($this->update_downloads($product, $force)) {
+            $this->updated_props[] = 'downloads';
+        }
+    }
+
+
+
 }
