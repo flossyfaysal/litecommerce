@@ -615,8 +615,121 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
 
     protected function update_terms(&$procuct, $force = false)
     {
+        $changes = $product->get_changes();
+        if ($force || array_key_exists('category_ids', $changes)) {
+            $categories = $product->get_category_ids('edit');
+
+            if (empty($categories) && get_option('default_product_cat', 0)) {
+                $categories = array(get_option('default_product_cat', 0));
+            }
+            wp_set_post_terms($product->get_id(), $categories, 'product_cat', false);
+        }
+        if ($force || array_key_exists('tag_ids', $changes)) {
+            wp_set_post_terms($product->get_id(), $product->get_tag_ids('edit'), 'product_tag', false);
+        }
+        if ($force || array_key_exists('shipping_class_id', $changes)) {
+            wp_set_post_term($product->get_id(), array($product->get_shipping_class_id('edit')), 'product_shipping_class', false);
+        }
+        _lc_count_terms_by_product($product->get_id());
 
     }
 
+    protected function update_visibility(&$product, $force = false)
+    {
+        $changes = $product->get_changes();
+
+        if ($force || array_intersect(array('featured', 'stock_status', 'average_rating', 'catalog_visibility'), array_keys($changes))) {
+            $terms = array();
+            if ($product->get_featured()) {
+                $terms[] = 'featured';
+            }
+            if ('outofstock' === $product->get_stock_status()) {
+                $terms[] = 'outofstock';
+            }
+
+            $rating = min(5, NumberUtil::round($product->get_average_rating(), 0));
+
+            if ($rating > 0) {
+                $terms[] = 'rated-' . $rating;
+            }
+
+            switch ($product->get_catalog_visibility()) {
+                case 'hidden':
+                    $terms[] = 'exclude-from-search';
+                    $terms[] = 'exclude-from-catalog';
+                    break;
+                case 'catalog':
+                    $terms[] = 'exclude-from-search';
+                    break;
+                case 'search':
+                    $terms[] = 'exclude-from-catalog';
+                    break;
+            }
+
+            if (!is_wp_error(wp_set_post_term($product->get_id(), $terms, 'product_visibility', false))) {
+                do_action(
+                    'litecommerce_product_set_visibility',
+                    $product->get_id(),
+                    $product->get_catalog_visibility()
+                );
+            }
+        }
+    }
+
+    protected function update_attributes(&$product, $force = false)
+    {
+        $changes = $product->get_changes();
+
+        if ($force || array_key_exists('attributes', $changes)) {
+            $attributes = $product->get_attributes();
+            $meta_values = array();
+
+            if ($attributes) {
+                foreach ($attributes as $attribute_key => $attribute) {
+                    $value = '';
+
+                    if (is_null($attribute)) {
+                        if (taxonomy_exists($attribute_key)) {
+                            wp_set_object_terms(
+                                $product->get_id(),
+                                array(),
+                                $attribute_key
+                            );
+                        } elseif (taxonomy_exists(urldecode($attribute_key))) {
+                            wp_set_object_terms(
+                                $product->get_id(),
+                                array(),
+                                urldecode($attribute_key)
+                            );
+                        }
+                        continue;
+                    } elseif ($attribute->is_taxonomy()) {
+                        wp_set_object_terms(
+                            $product->get_id(),
+                            wp_list_pluck((array) $attribute->get_terms(), 'term_id'),
+                            $attribute->get_name()
+                        );
+                    } else {
+                        $value = lc_implode_text_attributes($attribute->get_options());
+                    }
+
+                    $meta_values[$attribute_key] = array(
+                        'name' => $attribute->get_name(),
+                        'value' => $value,
+                        'position' => $attribute->get_position() ? 1 : 0,
+                        'is_visible' => $attribute->get_visibile() ? 1 : 0,
+                        'is_variation' => $attribute->get_variation() ? 1 : 0,
+                        'is_taxonomy' => $attribute->is_taxonomy() ? 1 : 0,
+                    );
+                }
+            }
+
+            $this->update_or_delete_post_meta(
+                $product,
+                '_product_attributes',
+                wp_slash($meta_values)
+            );
+        }
+    }
 
 }

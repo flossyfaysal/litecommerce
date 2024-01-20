@@ -89,8 +89,8 @@ final class LiteCommerce
         // Autoloader 
 
         // Interfaces
-        include_once LC_ABSPATH . 'includes/interfaces/class-lc-product-data-store-interface.php';
-        include_once LC_ABSPATH . 'includes/interfaces/class-lc-object-data-store-interfaces.php';
+        // include_once LC_ABSPATH . 'includes/interfaces/class-lc-product-data-store-interface.php';
+        //include_once LC_ABSPATH . 'includes/interfaces/class-lc-object-data-store-interfaces.php';
 
         // Traits
 
@@ -99,8 +99,8 @@ final class LiteCommerce
         // Core Classes
         include_once LC_ABSPATH . '/includes/class-lc-query.php';
         // Data Store
-        include_once LC_ABSPATH . 'includes/interfaces/class-lc-object-data-store-cpt.php';
-        include_once LC_ABSPATH . 'includes/interfaces/class-lc-product-data-store-cpt.php';
+        //include_once LC_ABSPATH . 'includes/interfaces/class-lc-object-data-store-cpt.php';
+        //include_once LC_ABSPATH . 'includes/interfaces/class-lc-product-data-store-cpt.php';
 
         // REST API
 
