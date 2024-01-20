@@ -732,4 +732,33 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
         }
     }
 
+    protected function update_downloads(&$product, $force = false)
+    {
+        $changes = $product->get_changes();
+        if ($force || array_key_exists('downloads', $changes)) {
+            $downloads = $product->get_downloads();
+            $meta_values = array();
+
+            if ($downloads) {
+                foreach ($downloads as $key => $download) {
+                    $meta_values[$key] = $download->get_data();
+                }
+            }
+
+            if ($product->is_type('variation')) {
+                do_action('litecommerce_process_product_file_download_path', $product->get_parent_id(), $product->get_id(), $downloads);
+            } else {
+                do_action(
+                    'litecommerce_process_product_file_download_path',
+                    $product->get_id(),
+                    0,
+                    $downloads
+                );
+            }
+
+            return $this->update_or_delete_post_meta($product, '_downloadable_files', wp_slash($meta_values));
+        }
+        return false;
+    }
+
 }
