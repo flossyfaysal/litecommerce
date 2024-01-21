@@ -1035,5 +1035,50 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
 
         return 0;
     }
+
+    public function create_all_product_variations($product, $limit = -1, $default_values = array())
+    {
+        $count = 0;
+
+        if (!$product) {
+            return $count;
+        }
+
+        $attributes = lc_list_pluck(array_filter($product->get_attributes(), 'lc_attributes_array_filter_variation'), 'get_slugs');
+
+        if (empty($attributes)) {
+            return $count;
+        }
+
+        $existing_variation = array_map('lc_get_product', $product->get_children());
+        $existing_attributes = array();
+
+        foreach ($existing_variation as $existing_variation) {
+            $existing_attributes[] = $existing_variation->get_attributes();
+        }
+
+        $possible_attributes = array_reverse(lc_array_cartesian($attributes));
+
+        foreach ($possible_attributes as $possible_attribute) {
+            if (in_array($possible_attribute, $existing_attributes)) {
+                continue;
+            }
+
+            $variation = lc_get_product_object('variation');
+            $variation->set_props($default_values);
+            $variation->set_parent_id($product->get_id());
+            $variation->set_attributes($possible_attribute);
+            $variation_id = $variation->save();
+
+            do_action('product_variation_linked', $variation_id);
+
+            $count++;
+
+            if ($limit > 0 && $count >= $limit) {
+                break;
+            }
+        }
+        return $count;
+    }
 }
 
