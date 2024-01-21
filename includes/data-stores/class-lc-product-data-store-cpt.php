@@ -761,4 +761,25 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
         return false;
     }
 
+    protected function update_version_and_type(&$product)
+    {
+        $old_type = LC_Product_Factory::get_product_type(
+            $product->get_id()
+        );
+        $new_type = $product->get_type();
+
+        wp_set_object_terms($product->get_id(), $new_type, 'product_type');
+        update_post_meta($product->get_id(), '_product_version', Constants::get_constant('LC_VERSION'));
+
+        if ($old_type !== $new_type) {
+            $this->updated_props[] = 'product_type';
+            do_action(
+                'litecommerce_product_type_changed',
+                $product,
+                $old_type,
+                $new_type
+            );
+        }
+    }
+
 }
