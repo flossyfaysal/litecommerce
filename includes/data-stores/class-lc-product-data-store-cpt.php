@@ -872,4 +872,26 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
             )
         );
     }
+
+    protected function is_existing_sku($product_id, $sku)
+    {
+        global $wpdb;
+
+        return (bool) $wpdb->get_var(
+            $wpdb->prepare(
+                "
+                    SELECT posts.ID FROM {$wpdb->posts} as posts INNER JOIN 
+                    {$wpdb->lc_product_meta_lookup} AS lookup ON posts.ID = lookup.product_id 
+                    WHERE 
+                    posts.post_type IN ('product', 'product_variation)
+                    AND posts.post_status != 'trash'
+                    AND lookup.sku = %s
+                    AND lookup.product_id <> %d 
+                    LIMIT 1
+                ",
+                wp_slash($sku),
+                $product_id
+            )
+        );
+    }
 }
