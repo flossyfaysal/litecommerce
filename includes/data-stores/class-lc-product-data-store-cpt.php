@@ -805,4 +805,47 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
         );
     }
 
+    protected function get_on_sale_products()
+    {
+        global $wpdb;
+
+        $exclude_term_ids = array();
+        $outofstock_join = '';
+        $outofstock_where = '';
+        $non_published_where = '';
+        $product_visibility_term_ids = lc_get_product_visibility_gterm_ids();
+
+        if ('yes' === get_option('litecommerce_hide_out_of_stock_items') && $product_visibility_term_ids['outofstock']) {
+            $exclude_term_ids[] = $product_visibility_term_ids['outofstock'];
+        }
+
+        if (count($exclude_term_ids)) {
+            $outofstock_join = " LEFT JOIN ( SELECT object_id FROM {$wpdb->term_relationships} WHERE term_taxonomy_id IN ( " . implode(',', array_map('absint', $exclude_term_ids)) . ' ) ) AS exclude_join ON exclude_join.object_id = id';
+            $outofstock_where = ' AND exclude_join.object_id IS NULL';
+        }
+
+        return $wpdb->get_results(
+            "
+			SELECT posts.ID as id, posts.post_parent as parent_id
+			FROM {$wpdb->posts} AS posts
+			INNER JOIN {$wpdb->wc_product_meta_lookup} AS lookup ON posts.ID = lookup.product_id
+			$outofstock_join
+			WHERE posts.post_type IN ( 'product', 'product_variation' )
+			AND posts.post_status = 'publish'
+			AND lookup.onsale = 1
+			$outofstock_where
+			AND posts.post_parent NOT IN (
+				SELECT ID FROM `$wpdb->posts` as posts
+				WHERE posts.post_type = 'product'
+				AND posts.post_parent = 0
+				AND posts.post_status != 'publish'
+			)
+			GROUP BY posts.ID
+			"
+        );
+
+
+
+
+    }
 }
