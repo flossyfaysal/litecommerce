@@ -843,9 +843,33 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
 			GROUP BY posts.ID
 			"
         );
+    }
 
+    protected function get_featured_product_ids()
+    {
+        $product_visibility_term_ids = lc_get_product_visibility_term_ids();
 
-
-
+        return get_posts(
+            array(
+                'post_type' => array('product', 'product_variation'),
+                'posts_per_page' => -1,
+                'post_status' => 'publish',
+                'tax_query' => array(
+                    'relation' => 'AND',
+                    array(
+                        'taxonomy' => 'product_visibility',
+                        'field' => 'term_taxonomy_id',
+                        'terms' => array($product_visibility_term_ids['featured']),
+                    ),
+                    array(
+                        'taxonomy' => 'product_visibility',
+                        'field' => 'term_taxonomy_id',
+                        'terms' => array($product_visibility_term_ids['exclude-from-catalog']),
+                        'operator' => 'NOT IN',
+                    ),
+                ),
+                'fields' => 'id=>parent',
+            )
+        );
     }
 }
