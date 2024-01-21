@@ -782,4 +782,27 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
         }
     }
 
+    protected function clear_caches(&$product)
+    {
+        lc_delete_product_transients(
+            $product->get_id()
+        );
+        if ($product->get_parent_id('edit')) {
+            lc_delete_product_transients(
+                $product->get_parent_id('edit')
+            );
+            LC_Cache_Helper::invalidate_cache_group(
+                'product_',
+                $product->get_parent_id('edit')
+            );
+        }
+        LC_Cache_Helper::invalidate_attribute_count(
+            array_keys($product->get_attributes())
+        );
+        LC_Cache_Helper::invalidate_cache_group(
+            'product_',
+            $product->get_id()
+        );
+    }
+
 }
