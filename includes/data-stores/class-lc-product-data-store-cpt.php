@@ -923,4 +923,25 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
             $sku
         );
     }
+
+    protected function get_starting_sales()
+    {
+        global $wpdb;
+
+        return $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT postmeta.post_id FROM {$wpdb->postmeta} as postmeta LEFT JOIN {$wpdb->postmeta} as postmeta_2 ON postmeta.post_id = postmeta_2.post_id
+                LEFT JOIN {$wpdb->postmeta} as postmeta_3 on postmeta.post_id = postmeta_3.post_id 
+                WHERE postmeta.meta_key = 
+                    '_sale_price_dates_from'
+                    AND postmeta_2.meta_key = '_price'
+                    AND postmeta_3.meta_key = '_sale_price'
+                    AND postmeta.meta_value > 0
+                    AND postmeta.meta_value < %s 
+                    AND postmeta_2.meta_value != postmeta_3.meta_value"
+                ,
+                time()
+            )
+        );
+    }
 }
