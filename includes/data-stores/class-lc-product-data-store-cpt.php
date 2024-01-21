@@ -894,4 +894,33 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
             )
         );
     }
+
+    protected function get_product_id_by_sku($sku)
+    {
+        global $wpdb;
+
+        $id = $wpdb->get_var(
+            $wpdb->prepare(
+                "
+                SELECT posts.ID
+                FROM {$wpdb->posts} as posts 
+                INNER JOIN 
+                {$wpdb->wc_product_meta_lookup} AS
+                lookup ON posts.ID = lookup.product_id
+                WHERE 
+                posts.post_type IN ('product', 'product_variation')
+                AND posts.post_status != 'trahs'
+                AND lookup.sku = %s
+                LIMIT 1
+                ",
+                $sku
+            )
+        );
+
+        return (int) apply_filters(
+            'litecommerce_get_product_id_by_sku',
+            $id,
+            $sku
+        );
+    }
 }
