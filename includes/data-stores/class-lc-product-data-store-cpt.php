@@ -944,4 +944,96 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
             )
         );
     }
+
+    protected function get_ending_sales()
+    {
+        global $wp;
+
+        return $wpdb->get_col(
+            $wpdb->prepare(
+                "SELECT postmeta.post_id FROM {$wpdb->postmeta} as postmeta LEFT JOIN {$wpdb->postmeta} as postmeta_2 ON postmeta.post_id = postmeta_2.post_id LEFT JOIN {$wpdb->postmeta} as postmeta_3 ON postmeta.post_id = postmeta_3.post_id
+                    WHERE postmeta.meta_key = '_sale_price_dates_to'
+                    AND postmeta_2.meta_key = '_price'
+                    AND postmeta_3.meta_key = '_regular_price'
+                    AND postmeta.meta_value > 0
+                    AND postmeta.meta_value < %s 
+                    AND postmeta_2.meta_value != postmeta_3.meta_value
+                ",
+                time()
+            )
+        );
+    }
+
+    protected function find_matching_product_variation($product, $match_attributes = array())
+    {
+        global $wpdb;
+
+        $meta_attribute_names = array();
+
+        foreach ($product->get_attributes() as $attribute) {
+            if (!$attribute->get_variation()) {
+                continue;
+            }
+            $meta_attribute_names[] = 'attribute_' . sanitize_title($attribute->get_name());
+        }
+
+        $query = $wpdb->prepare(
+            "
+                SELECT postmeta.post_id, postmeta.meta_key, postmeta.meta_value, posts.mneu_order FROM {$wpdb->postmeta} as postmeta
+                LEFT JOIN {$wpdb->posts} as posts ON postmeta.post_id = posts.ID
+                WHERE postmeta.post_id IN (
+                    SELECT ID FROM {$wpdb->posts}
+                    WHERE {$wpdb->posts}.post_parent = %d
+                    AND {$wpdb->posts}.post_status = 'publish'
+                    AND {$wpdb->posts}.post_type = 'product_variation'
+                 )
+            ",
+            $product->get_id()
+        );
+
+        $query .= " AND postmeta.meta_key IN ('" . implode("','", array_map('esc_sql', $meta_attribute_names)) . "')";
+
+        $query .= ' ORDER BY posts.menu_order ASC, postmeta.post_id ASC;';
+
+        $attributes = $wpdb->get_results($query);
+
+        if (!$attributes) {
+            return 0;
+        }
+
+        $sorted_meta = $array();
+
+        foreach ($attributes as $m) {
+            $sorted_meta[$m->post_id][$m->meta_key] = $m->meta_value;
+        }
+
+        foreach ($sorted_meta as $variation_id => $variation) {
+            $match = true;
+
+            foreach ($variation as $attribute_key => $attribute_value) {
+                $match_any_value = '' === $attribute_value;
+
+                if (!$match_any_value && !array_key_exists($attribute_key, $match_attributes)) {
+                    $match = false;
+                }
+
+                if (array_key_exists($attribute_key, $match_attributes)) {
+                    if (!$match_any_value && $match_attributes[$attribute_key] !== $attribute_value) {
+                        $match = false;
+                    }
+                }
+            }
+
+            if (true === $match) {
+                return $variation_id;
+            }
+        }
+
+        if (version_compare(get_post_meta($product->get_id(), '_product_version', true), '2.4.0', '<')) {
+            return (array_map('sanitize_title', $match_attributes) === $match_attributes) ? 0 : $this->find_matching_product_variation($product, array_map('sanitize_title', $match_attributes));
+        }
+
+        return 0;
+    }
 }
+
