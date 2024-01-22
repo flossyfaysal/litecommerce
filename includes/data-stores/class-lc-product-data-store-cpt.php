@@ -1102,5 +1102,72 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
             );
         }
     }
+
+    protected function get_related_products($cats_array, $tags_array, $exclude_ids, $limit, $product_id)
+    {
+        global $wpdb;
+
+        $args = array(
+            'categories' => $cats_array,
+            'tags' => $tags_array,
+            'exclude_ids' => $exclude_ids,
+            'limit' => $limit + 10
+        );
+
+        $related_product_query = (array) apply_filters(
+            'litecommerce_product_related_posts_query',
+            $this->get_related_products_query($cats_array, $tags_array, $exclude_ids, $limit + 10),
+            $product_id,
+            $args
+        );
+
+        return $wpdb->get_col(
+            implode(
+                ' ',
+                $related_product_query
+            )
+        );
+    }
+
+    public function get_related_products_query($cats_array, $tags_array, $exclude_ids, $limit)
+    {
+        global $wpdb;
+        $include_term_ids = array_merge(
+            $cats_array,
+            $tags_array
+        );
+        $exclude_term_ids = array();
+        $product_visibility_term_ids = lc_get_product_visibility_term_ids();
+
+        if ($product_visibility_term_ids['exclude-from-catalog']) {
+            $exclude_term_ids[] = $product_visibility_term_ids['exclude-from-catalog'];
+        }
+
+        if ('yes' === get_option('litecommerce_hide_out_of_stock_items') && $product_visibility_term_ids['outofstock']) {
+            $exclude_term_ids[] = $product_visibility_term_ids['outofstock'];
+        }
+
+        $query = array(
+            'fields' => "SELECT DISTINCT ID FROM {$wpdb->posts} p",
+            'join' => '',
+            'where' => "WHERE 1=1 AND p.post_status = 'publish' 
+            AND p.post_type = 'prouct'",
+            'limits' => 'LIMIT ' . absint($limit) . '',
+        );
+
+        if (count($exclude_term_ids)) {
+            // will continue
+        }
+
+        if (count($include_term_ids)) {
+
+        }
+
+        if (count($exclude_ids)) {
+
+        }
+
+        return $query;
+    }
 }
 
