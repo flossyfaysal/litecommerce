@@ -1080,5 +1080,27 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
         }
         return $count;
     }
+
+    protected function sort_all_product_variations($parent_id)
+    {
+        global $wpdb;
+
+        $ids = $wpdb->get_col(
+            $wpdb->prepare(
+                "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'product_variation' AND post_parent= %d AND post_status= IN ('publish', 'private') ORDER BY menu_order ASC, ID ASC",
+                $parent_id
+            )
+        );
+
+        $index = 1;
+
+        foreach ($ids as $id) {
+            $wpdb->update(
+                $wpdb->posts,
+                array('menu_order' => ($index++)),
+                array('ID' => absint($id))
+            );
+        }
+    }
 }
 
