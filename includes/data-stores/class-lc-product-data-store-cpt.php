@@ -1189,5 +1189,55 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
 
         $this->update_lookup_table($product_id_with_stock, 'lc_product_meta_lookup');
     }
+
+    protected update_product_stock( $product_id_with_stock, $stock_quantity = null){
+        global $wpdb;
+
+        add_post_meta($product_id_with_stock, '_stock', 0, true);
+
+        if( 'set' === $operation ){
+            $new_stock = lc_stock_amount($stock_quantity);
+
+            $sql = $wpdb->prepare(
+                "UPDATE {$wpdb->postmeta} SET meta_value=%f WHERE post_id=%d AND meta_key='_stock'",
+                $new_stock,
+                $product_id_with_stock
+            );
+        }else{
+            $current_stock = lc_stock_amount(
+                $wpdb->get_var(
+                    $wpdb->prepare(
+                        "SELECT meta_value FROM {$wpdb->postmeta} WHERE post_id=%d AND meta_key='_stock'",
+                        $product_id_with_stock
+                    )
+                )
+            );
+
+            switch($operation){
+                case 'increase': 
+                    $new_stock = $current_stock + lc_stock_amount($stock_quantity); 
+                    $multiplier = 1; 
+                    break; 
+                default: 
+                    $new_stock = $current_stock - lc_stock_amount($stock_quantity); 
+                    $multiplier = -1;
+                    break;
+            }
+
+            $sql = $wpdb->prepare(
+                "UPDATE {$wpdb->postmeta} SET meta_value = meta_value %+f WHERE post_id = %d AND meta_key ='_stock'", 
+                lc_stock_amount($stock_quantity) * multiplier,
+                $product_id_with_stock
+            );
+        }
+
+        $sql = apply_filters('litecommerce_update_product_stock_quantity', $sql, $product_id_with_stock, $new_stock, $operation);
+
+        $wpdb->query($sql);
+
+        wp_cache_delete($product_id_with_stock, 'post_meta');
+
+        $this->update_lookup_table($product_id_with_stock, 'lc_product_meta_lookup');
+    }
 }
 
