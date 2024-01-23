@@ -1190,7 +1190,7 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
         $this->update_lookup_table($product_id_with_stock, 'lc_product_meta_lookup');
     }
 
-    protected update_product_stock( $product_id_with_stock, $stock_quantity = null){
+    public function update_product_stock( $product_id_with_stock, $stock_quantity = null){
         global $wpdb;
 
         add_post_meta($product_id_with_stock, '_stock', 0, true);
@@ -1239,5 +1239,49 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
 
         $this->update_lookup_table($product_id_with_stock, 'lc_product_meta_lookup');
     }
+
+    public function update_product_sales( $product_id, $quantity = null, $operation = 'set'){
+        global $wpdb;
+
+        add_post_meta( $product_id, 'total_sales', 0, true);
+
+        switch ($operation) {
+            case 'increase':
+                $wpdb->query(
+                    $wpdb->prepare(
+                        "UPDATE {$wpdb->postmeta} SET meta_value = meta_value + %f WHERE post_id = %d AND meta_key = 'total_sales'",
+                        $quantity,
+                        $product_id
+                    )
+                )
+                break;
+
+            case 'decrease':
+                $wpdb->query(
+					$wpdb->prepare(
+						"UPDATE {$wpdb->postmeta} SET meta_value = meta_value - %f WHERE post_id = %d AND meta_key='total_sales'",
+						$quantity,
+						$product_id
+					)
+				);
+				break;
+            
+            default:
+            $wpdb->query(
+                $wpdb->prepare(
+                        "UPDATE {$wpdb->postmeta} SET meta_value = %f WHERE post_id = %d AND meta_key='total_sales'",
+                        $quantity,
+                        $product_id
+                    )
+                );
+            break;
+        }
+
+        lc_cache_delete($product_id, 'post_meta');
+        $this->update_lookup_table( $product_id, 'lc_product_meta_lookup');
+
+        do_action('litecommerce_updated_product_sales');
+    }
+    
 }
 
