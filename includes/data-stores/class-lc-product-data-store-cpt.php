@@ -1156,32 +1156,38 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
         );
 
         if (count($exclude_term_ids)) {
-			$query['join'] .= " LEFT JOIN ( SELECT object_id FROM {$wpdb->term_relationships} WHERE term_taxonomy_id IN ( " . implode(',', array_map('absint', $exclude_term_ids)) . ' ) ) AS exclude_join ON exclude_join.object_id = p.ID';
-			$query['where'] .= ' AND exclude_join.object_id IS NULL';
-		}
+            $query['join'] .= " LEFT JOIN ( SELECT object_id FROM {$wpdb->term_relationships} WHERE term_taxonomy_id IN ( " . implode(',', array_map('absint', $exclude_term_ids)) . ' ) ) AS exclude_join ON exclude_join.object_id = p.ID';
+            $query['where'] .= ' AND exclude_join.object_id IS NULL';
+        }
 
-		if (count($include_term_ids)) {
-			$query['join'] .= " INNER JOIN ( SELECT object_id FROM {$wpdb->term_relationships} INNER JOIN {$wpdb->term_taxonomy} using( term_taxonomy_id ) WHERE term_id IN ( " . implode(',', array_map('absint', $include_term_ids)) . ' ) ) AS include_join ON include_join.object_id = p.ID';
-		}
+        if (count($include_term_ids)) {
+            $query['join'] .= " INNER JOIN ( SELECT object_id FROM {$wpdb->term_relationships} INNER JOIN {$wpdb->term_taxonomy} using( term_taxonomy_id ) WHERE term_id IN ( " . implode(',', array_map('absint', $include_term_ids)) . ' ) ) AS include_join ON include_join.object_id = p.ID';
+        }
 
-		if (count($exclude_ids)) {
-			$query['where'] .= ' AND p.ID NOT IN ( ' . implode(',', array_map('absint', $exclude_ids)) . ' )';
-		}
+        if (count($exclude_ids)) {
+            $query['where'] .= ' AND p.ID NOT IN ( ' . implode(',', array_map('absint', $exclude_ids)) . ' )';
+        }
 
         return $query;
     }
 
-    protected function set_product_stock( $product_id_with_stock, $stock_quantity){
+    protected function set_product_stock($product_id_with_stock, $stock_quantity)
+    {
         global $wpdb;
 
         $sql = $wpdb->prepare(
-            "UPDATE {$wpdb->postmeta} SET meta_value = %f WHERE post_id = %d AND meta_key = '_stock'", 
+            "UPDATE {$wpdb->postmeta} SET meta_value = %f WHERE post_id = %d AND meta_key = '_stock'",
             $stock_quantity,
             $product_id_with_stock
         );
 
-        $sql = apply_filters('litecommerce_update_product_stock_quantity' 
-        $sql, $product_id_with_stock, $stock_quantity, 'set');
+        $sql = apply_filters(
+            'litecommerce_update_product_stock_quantity',
+            $sql,
+            $product_id_with_stock,
+            $stock_quantity,
+            'set'
+        );
 
         $wpdb->query($sql);
 
@@ -1190,12 +1196,13 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
         $this->update_lookup_table($product_id_with_stock, 'lc_product_meta_lookup');
     }
 
-    public function update_product_stock( $product_id_with_stock, $stock_quantity = null){
+    public function update_product_stock($product_id_with_stock, $stock_quantity = null)
+    {
         global $wpdb;
 
         add_post_meta($product_id_with_stock, '_stock', 0, true);
 
-        if( 'set' === $operation ){
+        if ('set' === $operation) {
             $new_stock = lc_stock_amount($stock_quantity);
 
             $sql = $wpdb->prepare(
@@ -1203,7 +1210,7 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
                 $new_stock,
                 $product_id_with_stock
             );
-        }else{
+        } else {
             $current_stock = lc_stock_amount(
                 $wpdb->get_var(
                     $wpdb->prepare(
@@ -1213,19 +1220,19 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
                 )
             );
 
-            switch($operation){
-                case 'increase': 
-                    $new_stock = $current_stock + lc_stock_amount($stock_quantity); 
-                    $multiplier = 1; 
-                    break; 
-                default: 
-                    $new_stock = $current_stock - lc_stock_amount($stock_quantity); 
+            switch ($operation) {
+                case 'increase':
+                    $new_stock = $current_stock + lc_stock_amount($stock_quantity);
+                    $multiplier = 1;
+                    break;
+                default:
+                    $new_stock = $current_stock - lc_stock_amount($stock_quantity);
                     $multiplier = -1;
                     break;
             }
 
             $sql = $wpdb->prepare(
-                "UPDATE {$wpdb->postmeta} SET meta_value = meta_value %+f WHERE post_id = %d AND meta_key ='_stock'", 
+                "UPDATE {$wpdb->postmeta} SET meta_value = meta_value %+f WHERE post_id = %d AND meta_key ='_stock'",
                 lc_stock_amount($stock_quantity) * multiplier,
                 $product_id_with_stock
             );
@@ -1240,10 +1247,11 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
         $this->update_lookup_table($product_id_with_stock, 'lc_product_meta_lookup');
     }
 
-    public function update_product_sales( $product_id, $quantity = null, $operation = 'set'){
+    public function update_product_sales($product_id, $quantity = null, $operation = 'set')
+    {
         global $wpdb;
 
-        add_post_meta( $product_id, 'total_sales', 0, true);
+        add_post_meta($product_id, 'total_sales', 0, true);
 
         switch ($operation) {
             case 'increase':
@@ -1253,35 +1261,66 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
                         $quantity,
                         $product_id
                     )
-                )
+                );
                 break;
 
             case 'decrease':
                 $wpdb->query(
-					$wpdb->prepare(
-						"UPDATE {$wpdb->postmeta} SET meta_value = meta_value - %f WHERE post_id = %d AND meta_key='total_sales'",
-						$quantity,
-						$product_id
-					)
-				);
-				break;
-            
+                    $wpdb->prepare(
+                        "UPDATE {$wpdb->postmeta} SET meta_value = meta_value - %f WHERE post_id = %d AND meta_key='total_sales'",
+                        $quantity,
+                        $product_id
+                    )
+                );
+                break;
+
             default:
-            $wpdb->query(
-                $wpdb->prepare(
+                $wpdb->query(
+                    $wpdb->prepare(
                         "UPDATE {$wpdb->postmeta} SET meta_value = %f WHERE post_id = %d AND meta_key='total_sales'",
                         $quantity,
                         $product_id
                     )
                 );
-            break;
+                break;
         }
 
         lc_cache_delete($product_id, 'post_meta');
-        $this->update_lookup_table( $product_id, 'lc_product_meta_lookup');
+        $this->update_lookup_table($product_id, 'lc_product_meta_lookup');
 
         do_action('litecommerce_updated_product_sales');
     }
-    
+
+    public function update_rating_counts($product)
+    {
+        update_post_meta($product->get_id(), '_wc_rating_count', $product->get_rating_counts('edit'));
+    }
+
+    public function update_review_count($product)
+    {
+        update_post_meta($product->get_id(), '_wc_review_count', $product->get_review_count('edit'));
+    }
+
+    public function update_average_rating($product)
+    {
+        update_post_meta($product->get_id(), '_wc_average_rating', $product->get_average_rating('edit'));
+        self::update_visibility($product, true);
+    }
+
+    public function get_shipping_class_id_by_slug($slug)
+    {
+        $shipping_class_term = get_term_by('slug', $slug, 'product_shipping_class');
+        if ($shipping_class_term) {
+            return $shipping_class_term;
+        } else {
+            return false;
+        }
+    }
+
+    public function get_products($args = array())
+    {
+        $query = new LC_Product_Query($args);
+        return $query->get_products();
+    }
 }
 
