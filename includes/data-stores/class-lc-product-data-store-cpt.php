@@ -1322,5 +1322,117 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
         $query = new LC_Product_Query($args);
         return $query->get_products();
     }
+
+    public function search_products($term, $type = '', $include_variations = false, $all_statuses = false, $limit = null, $include = null, $exclude = null)
+    {
+        global $wpdb;
+
+        $custom_results = apply_filters(
+            'litecommerce_product_pre_search_products',
+            false,
+            $term,
+            $type,
+            $include_variations,
+            $all_statuses,
+            $limit
+        );
+
+        if (is_array($custom_results)) {
+            return $custom_results;
+        }
+
+        $post_types = $include_variations ? array('product', 'product_variation') : array('product');
+        $join_query = '';
+        $type_where = '';
+        $status_where = '';
+        $limit_query = '';
+
+        if ($include_variations) {
+            $join_query = " LEFT JOIN {$wpdb->lc_product_meta_lookup} parent_lc_product_meta_lookup ON post.post_type='product_variation' AND parent_lc_product_meta_lookup.product_id = posts.post_parent ";
+        }
+
+        $post_statuses = apply_filters('litecommerce_search_products_post_statuses', current_user_can('edit_private_products') ? array('private', 'publish') : array('publish'));
+
+        if (stristr($term, ' or')) {
+            $term_groups = preg_split('/\s+or\s+/i', $term);
+        } else {
+            $term_groups = array($term);
+        }
+
+        $search_where = '';
+        $search_queries = array();
+
+        foreach ($term_groups as $term_group) {
+            if (preg_match_all('/".*?("|$)|((?<=[\t ",+])|^)[^\t ",+]+/', $term_group, $matches)) {
+                $search_terms = $this->get_valid_search_terms($matches[0]);
+                $count = count($search_terms);
+                if (9 < $count || 0 === $count) {
+                    $search_terms = array($term_group);
+                }
+            } else {
+                $search_terms = array($term_group);
+            }
+
+            $term_group_query = '';
+            $searchand = '';
+
+            foreach ($search_terms as $search_term) {
+                $like = '%' . $wpdb->esc_like($search_term) . '%';
+
+                if ($include_variations) {
+                    $variation_query = $wpdb->prepare(
+                        " OR (lc_product_meta_lookup.sku = '' AND parent_lc_product_meta_lookup.sku LIKE %s ) ",
+                        $like
+                    );
+                } else {
+                    $variation_query = '';
+                }
+
+                $term_group_query .= $wpdb->prepare(
+                    "{$searchand} ( (posts.post_title LIKE %s) OR (posts.post_excerpt LIKE %s) OR (posts.post_content LIKE %s ) OR ( lc_product_meta_lookup.sku LIKE %s ) $variation_query )",
+                    $like,
+                    $like,
+                    $like,
+                    $like
+                );
+
+                $searchand = ' AND';
+            }
+
+            if ($term_group_query) {
+                $search_queries[] = $term_group_query;
+            }
+        }
+
+        if (!empty($search_queries)) {
+            $search_where = ' AND (' . implode(') OR (', $search_queries) . ')';
+        }
+
+        if (!empty($include) && is_array($include)) {
+            $search_where .= ' AND posts.ID IN(' . implode(',', array_map('absint', $include)) . ') ';
+        }
+
+        if (!empty($exclude) && is_array($exclude)) {
+            $search_where .= ' AND posts.ID NOT IN(' . implode(',', array_map('absint', $exclude)) . ') ';
+        }
+
+        if ('virtual' === $type) {
+            $type_where = ' AND ( lc_product_meta_lookup.virtual = 1 ) ';
+        } elseif ('downloadable' === $type) {
+            $type_where .= ' AND ( lc_product_meta_lookup.downloadable = 1)';
+        }
+
+        if (!$all_statuses) {
+            $status_where = " AND posts.post_status IN('" . implode("','", $post_statuses) . "')";
+        }
+
+        if ($limit) {
+            $limit_query = $wpdb->prepare('LIMIT %d', $limit);
+        }
+
+        $search_results = $wpdb->get_results(
+            // to be continue;
+        );
+    }
 }
 
