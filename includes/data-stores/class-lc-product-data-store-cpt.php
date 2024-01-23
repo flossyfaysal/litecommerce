@@ -1156,18 +1156,38 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
         );
 
         if (count($exclude_term_ids)) {
-            // will continue
-        }
+			$query['join'] .= " LEFT JOIN ( SELECT object_id FROM {$wpdb->term_relationships} WHERE term_taxonomy_id IN ( " . implode(',', array_map('absint', $exclude_term_ids)) . ' ) ) AS exclude_join ON exclude_join.object_id = p.ID';
+			$query['where'] .= ' AND exclude_join.object_id IS NULL';
+		}
 
-        if (count($include_term_ids)) {
+		if (count($include_term_ids)) {
+			$query['join'] .= " INNER JOIN ( SELECT object_id FROM {$wpdb->term_relationships} INNER JOIN {$wpdb->term_taxonomy} using( term_taxonomy_id ) WHERE term_id IN ( " . implode(',', array_map('absint', $include_term_ids)) . ' ) ) AS include_join ON include_join.object_id = p.ID';
+		}
 
-        }
-
-        if (count($exclude_ids)) {
-
-        }
+		if (count($exclude_ids)) {
+			$query['where'] .= ' AND p.ID NOT IN ( ' . implode(',', array_map('absint', $exclude_ids)) . ' )';
+		}
 
         return $query;
+    }
+
+    protected function set_product_stock( $product_id_with_stock, $stock_quantity){
+        global $wpdb;
+
+        $sql = $wpdb->prepare(
+            "UPDATE {$wpdb->postmeta} SET meta_value = %f WHERE post_id = %d AND meta_key = '_stock'", 
+            $stock_quantity,
+            $product_id_with_stock
+        );
+
+        $sql = apply_filters('litecommerce_update_product_stock_quantity' 
+        $sql, $product_id_with_stock, $stock_quantity, 'set');
+
+        $wpdb->query($sql);
+
+        wp_cache_delete($product_id_with_stock, 'post_meta');
+
+        $this->update_lookup_table($product_id_with_stock, 'lc_product_meta_lookup');
     }
 }
 
