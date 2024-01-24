@@ -1431,8 +1431,54 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
         }
 
         $search_results = $wpdb->get_results(
-            // to be continue;
+            "SELECT DISTINCT posts.ID as product_id, posts.post_parent as parent_id FROM {$wpdb->posts} posts LEFT JOIN {$wpdb->lc_product_meta_lookup} ON posts.ID = lc_product_meta_lookup.product_id $join_query
+            WHERE posts.post_type IN('" . implode("','", $post_types) . "')
+            $search_where
+            $status_where
+            $type_where
+            ORDER BY posts.post_parent ASC,
+            posts.post_title ASC
+            $limit_query"
         );
+
+        $product_ids = wp_parse_id_list(array_merge(wp_list_pluck($search_results, 'product_id'), wp_list_pluck($search_results, 'parent_id')));
+
+        if (is_numeric($term)) {
+            $post_id = absint($term);
+            $post_type = get_post_type($post_id);
+
+            if ('product_variation' === $post_type && $include_variations) {
+                $product_ids[] = $post_id;
+            } elseif ('product' === $post_type) {
+                $product_ids[] = $post_id;
+            }
+            $product_ids[] = wp_get_post_parent_id($post_id);
+        }
+
+        return wp_parse_id_list($product_ids);
+    }
+
+    public function get_product_type($product_id)
+    {
+        $cache_key = LC_Cache_Helper::get_cache_prefix('product_' . $product_id) . '_type_' . $product_id;
+        $product_type = wp_cache_get($cache_key, 'products');
+
+        if ($product_type) {
+            return $product_type;
+        }
+
+        $post_type = get_post_type($product_id);
+
+        if ('product_variation' === $post_type) {
+            $product_type = 'variation';
+        } elseif ('product' === $post_type) {
+            $terms = get_the_terms($product_id, 'product_type');
+            $product_type = !empty($terms) && !is_wp_error($terms) ? sanitize_title(current($terms)->name) : 'simple';
+        } else {
+            $product_type = false;
+        }
+
+        wp_cache_set($cache_key, $product_type, 'products');
     }
 }
 
