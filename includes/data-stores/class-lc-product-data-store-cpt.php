@@ -1795,5 +1795,26 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
         }
         return array();
     }
+
+    protected function get_primary_key_for_lookup_table($table)
+    {
+        if ('wc_product_meta_lookup' === $table) {
+            return 'product_id';
+        }
+        return '';
+    }
+
+    public function get_query_for_stock($product_id)
+    {
+        global $wpdb;
+        return $wpdb->prepare(
+            "
+			SELECT COALESCE( MAX( meta_value ), 0 ) FROM $wpdb->postmeta as meta_table
+			WHERE meta_table.meta_key = '_stock'
+			AND meta_table.post_id = %d
+			",
+            $product_id
+        );
+    }
 }
 
