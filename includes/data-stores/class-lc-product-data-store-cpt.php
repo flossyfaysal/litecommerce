@@ -1735,5 +1735,36 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
 
         return apply_filters('woocommerce_product_data_store_cpt_get_products_query', $wp_query_args, $query_vars, $this);
     }
+
+    public function query($query_vars)
+    {
+        $args = $this->get_wp_query_args($query_vars);
+
+        if (!empty($args['errors'])) {
+            $query = (object) array(
+                'posts' => array(),
+                'found_posts' => 0,
+                'max_num_pages' => 0
+            );
+        } else {
+            $query = new WP_Query($args);
+        }
+
+        if (!isset($query_vars['return']) && 'objects' === $query_vars['return'] && !empty($query->posts)) {
+            update_post_caches($query->posts, array('product', 'product_variation'));
+        }
+
+        $products = (isset($query_vars['return']) && 'ids' === $query_vars['return']) ? $query->posts : array_filter(array_map('wc_get_product', $query->posts));
+
+        if (isset($query_vars['paginate']) && $query_vars['paginate']) {
+            return (object) array(
+                'products' => $products,
+                'total' => $query->found_posts,
+                'max_num_pages' => $query->max_num_pages
+            );
+        }
+
+        return $products;
+    }
 }
 
