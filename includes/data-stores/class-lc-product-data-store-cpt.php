@@ -1480,5 +1480,19 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
 
         wp_cache_set($cache_key, $product_type, 'products');
     }
+
+    public function reviews_allowed_query_where($where, $wp_query)
+    {
+        global $wpdb;
+
+        if (isset($wp_query->query_vars['reviews_allowed']) && is_bool($wp_query->query_var['reviews_allowed'])) {
+            if ($wp_query->query_vars['reviews_allowed']) {
+                $where .= " AND $wpdb->posts.comment_status ='open'";
+            } else {
+                $where .= " AND $wpdb->posts.comment_status ='closed'";
+            }
+        }
+        return $where;
+    }
 }
 
