@@ -1766,5 +1766,34 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
 
         return $products;
     }
+
+    protected function get_data_for_lookup_table($id, $table)
+    {
+        if ('lc_product_meta_lookup' === $table) {
+            $price_meta = (array) get_post_meta($id, '_price', false);
+            $manage_stock = get_post_meta($id, '_manage_stock', true);
+            $stock = 'yes' === $manage_stock ? lc_stock_amount(get_post_meta($id, '_stock', true)) : null;
+            $price = lc_format_decimal(get_post_meta($id, '_price', true));
+            $sale_price = lc_format_decimal(get_post_meta($id, '_sale_price', true));
+
+            return array(
+                'product_id' => absint($id),
+                'sku' => get_post_meta($id, '_sku', true),
+                'virtual' => 'yes' === get_post_meta($id, '_virtual', true) ? 1 : 0,
+                'downloadable' => 'yes' === get_post_meta($id, '_downloadable', true) ? 1 : 0,
+                'min_price' => reset($price_meta),
+                'max_price' => end($price_meta),
+                'onsale' => $sale_price && $price === $sale_price ? 1 : 0,
+                'stock_quantity' => $stock,
+                'stock_status' => get_post_meta($id, '_stock_status', true),
+                'rating_count' => array_sum(array_map('intval', (array) get_post_meta($id, '_wc_rating_count', true))),
+                'average_rating' => get_post_meta($id, '_wc_average_rating', true),
+                'total_sales' => get_post_meta($id, 'total_sales', true),
+                'tax_status' => get_post_meta($id, '_tax_status', true),
+                'tax_class' => get_post_meta($id, '_tax_class', true),
+            );
+        }
+        return array();
+    }
 }
 
