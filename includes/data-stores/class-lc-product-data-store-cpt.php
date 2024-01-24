@@ -1494,5 +1494,246 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
         }
         return $where;
     }
+
+    protected function get_wp_query_args($query_vars)
+    {
+        $key_mapping = array(
+            'status' => 'post_status',
+            'page' => 'paged',
+            'include' => 'post__in',
+            'stock_quantity' => 'stock',
+            'average_rating' => 'lc_average_rating',
+            'review_count' => 'lc_review_count',
+        );
+
+        foreach ($key_mapping as $query_key => $db_key) {
+            if (isset($query_vars[$query_key])) {
+                $query_vars[$db_key] = $query_vars[$query_key];
+                unset($query_vars[$query_key]);
+            }
+        }
+
+        $boolean_queries = array(
+            'virtual',
+            'downloadables',
+            'sold_individually',
+            'manage_stock'
+        );
+
+        foreach ($boolean_queries as $boolean_query) {
+            if (isset($query_vars[$boolean_query]) && '' !== $query_vars[$boolean_query]) {
+                $query_vars[$boolean_query] = $query_vars[$boolean_query] ? 'yes' : 'no';
+            }
+        }
+
+        $manual_queries = array(
+            'sku' => '',
+            'featured' => '',
+            'visibility' => ''
+        );
+
+        foreach ($manual_queries as $key => $manual_query) {
+            if (isset($manual_queries[$key])) {
+                $manual_queries[$key] = $query_vars[$key];
+                unset($query_vars[$key]);
+            }
+        }
+
+        $wp_query_args = parent::get_wp_query_args($query_vars);
+
+        if (!isset($wp_query_args['date_query'])) {
+            $wp_query_args['date_query'] = array();
+        }
+
+        if (!isset($wp_query_args['meta_query'])) {
+            $wp_query_args['meta_query'] = array();
+        }
+
+        if ('variation' === $query_vars['type']) {
+            $wp_query_args['post_type'] = 'product_variation';
+
+        } elseif (is_array($query_vars['type']) && in_array('variation', $query_vars['post_type'], true)) {
+            $wp_query_args['post_type'] = array('product_variation', 'product');
+            $wp_query_args['tax_query'][] = array(
+                'relation' => 'OR',
+                array(
+                    'taxonomy' => 'product_type',
+                    'field' => 'slug',
+                    'terms' => $query_vars['type']
+                ),
+                array(
+                    'taxonomy' => 'product_type',
+                    'field' => 'id',
+                    'operator' => 'NOT EXISTS',
+                ),
+            );
+        } else {
+            $wp_query_args['post_type'] = 'product';
+            $wp_query_args['tax_query'][] = array(
+                'taxonomy' => 'product_type',
+                'field' => 'slug',
+                'terms' => $query_vars['type'],
+            );
+        }
+
+        // Handle product categories
+        if (!empty($query_vars['category'])) {
+            $wp_query_args['tax_query'][] = array(
+                'taxonomy' => 'product_cat',
+                'field' => 'slug',
+                'terms' => $query_vars['category'],
+            );
+        } elseif (!empty($query_vars['product_category_id'])) {
+            $wp_query_args['tax_query'][] = array(
+                'taxonomy' => 'product_cat',
+                'field' => 'term_id',
+                'terms' => $query_vars['product_category_id'],
+            );
+        }
+
+        if (!empty($query_vars['tag'])) {
+            unset($wp_query_args['tag']);
+            $wp_query_args['tax_query'][] = array(
+                'taxonomy' => 'product_tag',
+                'field' => 'slug',
+                'terms' => $query_vars['tag'],
+            );
+        } elseif (!empty($query_vars['product_tag_id'])) {
+            $wp_query_args['tax_query'][] = array(
+                'taxonomy' => 'product_tag',
+                'field' => 'term_id',
+                'terms' => $query_vars['product_tag_id'],
+            );
+        }
+
+        if (!empty($query_vars['shipping_class'])) {
+            $wp_query_args['tax_query'][] = array(
+                'taxonomy' => 'product_shipping_class',
+                'field' => 'slug',
+                'terms' => $query_vars['shipping_class'],
+            );
+        }
+
+        if ($manual_queries['sku']) {
+            if ('*' === $manual_queries['sku']) {
+                $wp_query_args['meta_query'][] = array(
+                    array(
+                        'key' => '_sku',
+                        'compare' => 'EXISTS',
+                    ),
+                    array(
+                        'key' => '_sku',
+                        'value' => '',
+                        'compare' => '!='
+                    )
+                );
+            } else {
+                $wp_query_args['meta_query'][] = array(
+                    'key' => '_sku',
+                    'value' => $manual_queries['sku'],
+                    'compare' => 'LIKE'
+                );
+            }
+        }
+
+        if ('' !== $manual_queries['featured']) {
+            $product_visibility_term_ids = lc_get_product_visibility_term_ids();
+            if ($manual_queries['featured']) {
+                $wp_query_args['tax_query'][] = array(
+                    'taxonomy' => 'product_visibility',
+                    'field' => 'term_taxonomy_id',
+                    'terms' => array($product_visibility_term_ids['featured']),
+                );
+                $wp_query_args['tax_query'][] = array(
+                    'taxonomy' => 'product_visibility',
+                    'field' => 'term_taxonomy_id',
+                    'terms' => array($product_visibility_term_ids['exclude-from-catalog']),
+                );
+            } else {
+                $wp_query_args['tax_query'][] = array(
+                    'taxonomy' => 'product_visibility',
+                    'field' => 'term_taxonomy_id',
+                    'terms' => array($product_visibility_term_ids['featured']),
+                    'operator' => 'NOT IN',
+                );
+            }
+        }
+
+        if ($manual_queries['visibility']) {
+            switch ($manual_queries['visibility']) {
+                case 'search':
+                    $wp_query_args['tax_query'][] = array(
+                        'taxonomy' => 'product_visibility',
+                        'field' => 'slug',
+                        'terms' => array('exclude-from-search'),
+                        'operator' => 'NOT IN'
+                    );
+                    break;
+                case 'catalog':
+                    $wp_query_args['tax_query'][] = array(
+                        'taxonomy' => 'product_visibility',
+                        'field' => 'slug',
+                        'terms' => array('exclude-from-catalog'),
+                        'operator' => 'NOT IN'
+                    );
+                    break;
+                case 'visibile':
+                    $wp_query_args['tax_query'][] = array(
+                        'taxonomy' => 'product_visibility',
+                        'field' => 'slug',
+                        'terms' => array('exclude-from-search', 'exclude-from-catalog'),
+                        'operator' => 'NOT IN'
+                    );
+                    break;
+                case 'hidden':
+                    $wp_query_args['tax_query'][] = array(
+                        'taxonomy' => 'product_visibility',
+                        'field' => 'slug',
+                        'terms' => array(
+                            'exclude-from-search',
+                            'exclude-from-catalog'
+                        ),
+                        'operator' => 'AND'
+                    );
+                    break;
+            }
+        }
+
+        $date_queries = array(
+            'date_created' => 'post_date',
+            'date_modified' => 'post_modified',
+            'date_on_sale_from' => '_sale_price_dates_from',
+            'date_on_sale_to' => '_sale_price_dates_to',
+        );
+
+        foreach ($date_queries as $query_var_key => $db_key) {
+            if (isset($query_vars[$query_var_key]) && '' !== $query_vars[$query_var_key]) {
+                $existing_queries = wp_list_pluck(
+                    $wp_query_args['meta_query'],
+                    'key',
+                    true
+                );
+                foreach ($existing_queries as $query_index => $query_contents) {
+                    unset($wp_query_args['meta_query'][$query_index]);
+                }
+
+                $wp_query_args = $this->parse_date_for_wp_query($query_vars[$query_var_key], $db_key, $wp_query_args);
+            }
+        }
+
+        if (!isset($query_vars['paginate']) || !$query_vars['paginate']) {
+            $wp_query_args['no_found_rows'] = true;
+        }
+
+        if (isset($query_vars['reviews_allowed']) && is_bool($query_vars['reviews_allowed'])) {
+            add_filter('posts_where', array($this, 'reviews_allowed_query_where'), 10, 2);
+        }
+
+        if (isset($query_vars['orderby']) && 'include' === $query_vars['orderby']) {
+            $wp_query_args['orderby'] = 'post__in';
+        }
+
+        return apply_filters('woocommerce_product_data_store_cpt_get_products_query', $wp_query_args, $query_vars, $this);
+    }
 }
 
