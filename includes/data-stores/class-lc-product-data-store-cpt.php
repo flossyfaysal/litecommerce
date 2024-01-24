@@ -1793,7 +1793,7 @@ class LC_Product_Data_Store_CPT extends LC_Data_Store_WP implements LC_Object_Da
                 'tax_class' => get_post_meta($id, '_tax_class', true),
             );
         }
-        return array('');
+        return array();
     }
 }
 
