@@ -1,4 +1,5 @@
 <?php
+use Automattic\WooCommerce\Internal\DependencyManagement\ServiceProviders\ProductAttributesLookupServiceProvider;
 
 /**
  * LiteCommerce product base class. 
@@ -734,6 +735,66 @@ class LC_Product extends Legacy_LC_Product
     {
         $this->set_prop('review_count', absint($count));
     }
+
+    public function validate_props()
+    {
+        if (!$this->get_manage_stock()) {
+            $this->set_stock_quantity('');
+            $this->set_backorders('');
+            $this->set_low_stock_amount('');
+            return;
+        }
+
+        $stock_is_above_notification_threshold = ((int) $this->get_stock_quantity() > absint(get_option('litecommerce_notify_no_stock_amount', 0)));
+
+        $backorders_are_allowed = ('no' !== $this->get_backorders());
+
+        if ($stock_is_above_notification_threshold) {
+            $new_stock_status = 'instock';
+        } elseif ($backorders_are_allowed) {
+            $new_stock_status = 'onbackorder';
+        } else {
+            $new_stock_status = 'outofstock';
+        }
+
+        $this->set_stock_status($new_stock_status);
+    }
+
+    public function save()
+    {
+        $this->validate_props();
+        if (!$this->data_store) {
+            return $this->get_id();
+        }
+
+        do_action('litecommerce_before_' . $this->object_type . '_object_save', $this, $this->data_store);
+
+        $state = $this->before_data_store_save_or_update();
+
+        if ($this->get_id()) {
+            $changeset = $this->get_changes();
+            $this->data_store->update($this);
+        } else {
+            $changeset = null;
+            $this->data_store->create($this);
+        }
+
+        $this->after_data_store_save_or_update();
+
+        if (is_null($changeset) || !empty($changeset)) {
+            lc_get_container()->get(
+                ProductAttributesLookupServiceProvider::class
+            )->on_product_changed($this, $changeset);
+
+        }
+
+        do_action('litecommerce_after_' . $this->object_type . '_object_save', $this, $this->data_store);
+
+        return $this->get_id();
+
+    }
+
+
 
 
 }
