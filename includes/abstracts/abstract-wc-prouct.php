@@ -794,6 +794,38 @@ class LC_Product extends Legacy_LC_Product
 
     }
 
+    protected function before_data_store_save_or_update()
+    {
+    }
+
+    protected function after_data_store_save_or_update()
+    {
+        $this->maybe_defer_product_sync();
+    }
+
+    public function delete($force_delete)
+    {
+        $product_id = $this->get_id();
+        $deleted = parent::delete($force_delete);
+
+        if ($deleted) {
+            $this->maybe_defer_product_sync();
+            lc_get_container()->get(
+                ProductAttributesLookupServiceProvider::class
+            )->on_product_deleted($product_id);
+        }
+
+        return $deleted;
+    }
+
+    protected function maybe_defer_product_sync()
+    {
+        $parent_id = $this->get_parent_id();
+        if ($parent_id) {
+            lc_defferred_product_sync($parent_id);
+        }
+    }
+
 
 
 
