@@ -227,8 +227,8 @@ class LC_Product extends Legacy_LC_Product
     public function get_dimensions($formatted = true)
     {
         if ($formatted) {
-            wc_deprecated_argument('WC_Product::get_dimensions', '3.0', 'By default, get_dimensions has an argument set to true so that HTML is returned. This is to support the legacy version of the method. To get HTML dimensions, instead use wc_format_dimensions() function. Pass false to this method to return an array of dimensions. This will be the new default behavior in future versions.');
-            return apply_filters('woocommerce_product_dimensions', wc_format_dimensions($this->get_dimensions(false)), $this);
+            lc_deprecated_argument('lc_Product::get_dimensions', '3.0', 'By default, get_dimensions has an argument set to true so that HTML is returned. This is to support the legacy version of the method. To get HTML dimensions, instead use lc_format_dimensions() function. Pass false to this method to return an array of dimensions. This will be the new default behavior in future versions.');
+            return apply_filters('woocommerce_product_dimensions', lc_format_dimensions($this->get_dimensions(false)), $this);
         }
         return array(
             'length' => $this->get_length(),
@@ -408,8 +408,8 @@ class LC_Product extends Legacy_LC_Product
     public function set_sku($sku)
     {
         $sku = (string) $sku;
-        if ($this->get_object_read() && !empty($sku) && !wc_product_has_unique_sku($this->get_id(), $sku)) {
-            $sku_found = wc_get_product_id_by_sku($sku);
+        if ($this->get_object_read() && !empty($sku) && !lc_product_has_unique_sku($this->get_id(), $sku)) {
+            $sku_found = lc_get_product_id_by_sku($sku);
 
             $this->error(
                 'product_invalid_sku',
@@ -417,11 +417,323 @@ class LC_Product extends Legacy_LC_Product
                 400,
                 array(
                     'resource_id' => $sku_found,
-                    'unique_sku' => wc_product_generate_unique_sku($this->get_id(), $sku),
+                    'unique_sku' => lc_product_generate_unique_sku($this->get_id(), $sku),
                 )
             );
         }
         $this->set_prop('sku', $sku);
     }
+
+    public function set_price($price)
+    {
+        $this->set_prop('price', lc_format_decimal($price));
+    }
+
+    public function set_regular_price($price)
+    {
+        $this->set_prop('regular_price', lc_format_decimal($price));
+    }
+
+    public function set_date_on_sale_from($date = null)
+    {
+        $this->set_date_prop('date_on_sale_from', $date);
+    }
+
+    public function set_date_on_sale_to($date = null)
+    {
+        $this->set_date_prop('date_on_sale_to', $date);
+    }
+
+    public function set_total_sales($total)
+    {
+        $this->set_prop('total_sales', absint($total));
+    }
+
+    public function set_tax_status($status)
+    {
+        $options = array(
+            'taxable',
+            'shipping',
+            'none',
+        );
+
+        // Set default if empty.
+        if (empty($status)) {
+            $status = 'taxable';
+        }
+
+        $status = strtolower($status);
+
+        if (!in_array($status, $options, true)) {
+            $this->error('product_invalid_tax_status', __('Invalid product tax status.', 'woocommerce'));
+        }
+
+        $this->set_prop('tax_status', $status);
+    }
+
+    public function set_tax_class($class)
+    {
+        $class = sanitize_title($class);
+        $class = 'standard' === $class ? '' : $class;
+        $valid_classes = $this->get_valid_tax_classes();
+
+        if (!in_array($class, $valid_classes, true)) {
+            $class = '';
+        }
+
+        $this->set_prop('tax_class', $class);
+    }
+
+    protected function get_valid_tax_classes()
+    {
+        return lc_Tax::get_tax_class_slugs();
+    }
+
+    public function set_manage_stock($manage_stock)
+    {
+        $this->set_prop('manage_stock', lc_string_to_bool($manage_stock));
+    }
+
+    public function set_stock_quantity($quantity)
+    {
+        $this->set_prop('stock_quantity', '' !== $quantity ? lc_stock_amount($quantity) : null);
+    }
+
+    public function set_stock_status($status = 'instock')
+    {
+        $valid_statuses = lc_get_product_stock_status_options();
+
+        if (isset($valid_statuses[$status])) {
+            $this->set_prop('stock_status', $status);
+        } else {
+            $this->set_prop('stock_status', 'instock');
+        }
+    }
+
+    public function set_backorders($backorders)
+    {
+        $this->set_prop('backorders', $backorders);
+    }
+
+    public function set_low_stock_amount($amount)
+    {
+        $this->set_prop('low_stock_amount', '' === $amount ? '' : absint($amount));
+    }
+
+    public function set_sold_individually($sold_individually)
+    {
+        $this->set_prop('sold_individually', lc_string_to_bool($sold_individually));
+    }
+
+    public function set_weight($weight)
+    {
+        $this->set_prop('weight', '' === $weight ? '' : lc_format_decimal($weight));
+    }
+
+    public function set_length($length)
+    {
+        $this->set_prop('length', '' === $length ? '' : lc_format_decimal($length));
+    }
+
+    public function set_width($width)
+    {
+        $this->set_prop('width', '' === $width ? '' : wc_format_decimal($width));
+    }
+
+    public function set_height($height)
+    {
+        $this->set_prop('height', '' === $height ? '' : wc_format_decimal($height));
+    }
+
+    public function set_upsell_ids($upsell_ids)
+    {
+        $this->set_prop('upsell_ids', array_filter((array) $upsell_ids));
+    }
+
+    public function set_cross_sell_ids($cross_sell_ids)
+    {
+        $this->set_prop('cross_sell_ids', array_filter((array) $cross_sell_ids));
+    }
+
+    public function set_parent_id($parent_id)
+    {
+        $this->set_prop('parent_id', absint($parent_id));
+    }
+
+    public function set_reviews_allowed($reviews_allowed)
+    {
+        $this->set_prop('reviews_allowed', wc_string_to_bool($reviews_allowed));
+    }
+
+    public function set_purchase_note($purchase_note)
+    {
+        $this->set_prop('purchase_note', $purchase_note);
+    }
+
+    public function set_attributes($raw_attributes)
+    {
+        $attributes = array_fill_keys(array_keys($this->get_attributes('edit')), null);
+        foreach ($raw_attributes as $attribute) {
+            if (is_a($attribute, 'WC_Product_Attribute')) {
+                $attributes[sanitize_title($attribute->get_name())] = $attribute;
+            }
+        }
+
+        uasort($attributes, 'wc_product_attribute_uasort_comparison');
+        $this->set_prop('attributes', $attributes);
+    }
+
+    public function set_default_attributes($default_attributes)
+    {
+        $this->set_prop('default_attributes', array_map('strval', array_filter((array) $default_attributes, 'wc_array_filter_default_attributes')));
+    }
+
+    public function set_menu_order($menu_order)
+    {
+        $this->set_prop('menu_order', intval($menu_order));
+    }
+
+    public function set_post_password($post_password)
+    {
+        $this->set_prop('post_password', $post_password);
+    }
+
+    public function set_category_ids($term_ids)
+    {
+        $this->set_prop('category_ids', array_unique(array_map('intval', $term_ids)));
+    }
+
+    public function set_tag_ids($term_ids)
+    {
+        $this->set_prop('tag_ids', array_unique(array_map('intval', $term_ids)));
+    }
+
+    public function set_virtual($virtual)
+    {
+        $this->set_prop('virtual', wc_string_to_bool($virtual));
+    }
+
+    public function set_shipping_class_id($id)
+    {
+        $this->set_prop('shipping_class_id', absint($id));
+    }
+
+    public function set_downloadable($downloadable)
+    {
+        $this->set_prop('downloadable', wc_string_to_bool($downloadable));
+    }
+
+    public function set_downloads($downloads_array)
+    {
+        // When the object is first hydrated, only the previously persisted downloads will be passed in.
+        $existing_downloads = $this->get_object_read() ? (array) $this->get_prop('downloads') : $downloads_array;
+        $downloads = array();
+        $errors = array();
+
+        $downloads_array = $this->build_downloads_map($downloads_array);
+        $existing_downloads = $this->build_downloads_map($existing_downloads);
+
+        foreach ($downloads_array as $download) {
+            $download_id = $download->get_id();
+            $is_new = !isset($existing_downloads[$download_id]);
+            $has_changed = !$is_new && $existing_downloads[$download_id]->get_file() !== $downloads_array[$download_id]->get_file();
+
+            try {
+                $download->check_is_valid($this->get_object_read());
+                $downloads[$download_id] = $download;
+            } catch (Exception $e) {
+                // We only add error messages for newly added downloads (let's not overwhelm the user if there are
+                // multiple existing files which are problematic).
+                if ($is_new || $has_changed) {
+                    $errors[] = $e->getMessage();
+                }
+
+                // If the problem is with an existing download, disable it.
+                if (!$is_new) {
+                    $download->set_enabled(false);
+                    $downloads[$download_id] = $download;
+                }
+            }
+        }
+
+        $this->set_prop('downloads', $downloads);
+
+        if ($errors && $this->get_object_read()) {
+            $this->error('product_invalid_download', $errors[0]);
+        }
+    }
+
+    private function build_downloads_map(array $downloads): array
+    {
+        $downloads_map = array();
+
+        foreach ($downloads as $download_data) {
+            // If the item is already a WC_Product_Download we can add it to the map and move on.
+            if (is_a($download_data, 'WC_Product_Download')) {
+                $downloads_map[$download_data->get_id()] = $download_data;
+                continue;
+            }
+
+            // If the item is not an array, there is nothing else we can do (bad data).
+            if (!is_array($download_data)) {
+                continue;
+            }
+
+            // Otherwise, transform the array to a WC_Product_Download and add to the map.
+            $download_object = new WC_Product_Download();
+
+            // If we don't have a previous hash, generate UUID for download.
+            if (empty($download_data['download_id'])) {
+                $download_data['download_id'] = wp_generate_uuid4();
+            }
+
+            $download_object->set_id($download_data['download_id']);
+            $download_object->set_name($download_data['name']);
+            $download_object->set_file($download_data['file']);
+            $download_object->set_enabled(isset($download_data['enabled']) ? $download_data['enabled'] : true);
+
+            $downloads_map[$download_object->get_id()] = $download_object;
+        }
+
+        return $downloads_map;
+    }
+
+    public function set_download_limit($download_limit)
+    {
+        $this->set_prop('download_limit', -1 === (int) $download_limit || '' === $download_limit ? -1 : absint($download_limit));
+    }
+
+    public function set_download_expiry($download_expiry)
+    {
+        $this->set_prop('download_expiry', -1 === (int) $download_expiry || '' === $download_expiry ? -1 : absint($download_expiry));
+    }
+
+    public function set_gallery_image_ids($image_ids)
+    {
+        $image_ids = wp_parse_id_list($image_ids);
+
+        $this->set_prop('gallery_image_ids', $image_ids);
+    }
+
+    public function set_image_id($image_id = '')
+    {
+        $this->set_prop('image_id', $image_id);
+    }
+
+    public function set_rating_counts($counts)
+    {
+        $this->set_prop('rating_counts', array_filter(array_map('absint', (array) $counts)));
+    }
+
+    public function set_average_rating($average)
+    {
+        $this->set_prop('average_rating', wc_format_decimal($average));
+    }
+
+    public function set_review_count($count)
+    {
+        $this->set_prop('review_count', absint($count));
+    }
+
 
 }
