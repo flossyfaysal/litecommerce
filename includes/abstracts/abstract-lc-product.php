@@ -1109,6 +1109,37 @@ class LC_Product extends Legacy_LC_Product
         return apply_filters('litecommerce_product_get_image', $image, $this, $size, $attr, $placeholder, $image);
     }
 
+    public function get_shipping_class()
+    {
+        $class_id = $this->get_shipping_class_id();
+        if ($class_id) {
+            $term = get_term_by(
+                'id',
+                $class_id,
+                'product_shipping_class'
+            );
+            if ($term && !is_wp_error($term)) {
+                return $term->slug;
+            }
+        }
+        return '';
+    }
+
+    public function get_attribute($attribute)
+    {
+        $attributes = $this->get_attributes();
+        $attribute = sanitize_title($attribute);
+
+        if (isset($attributes[$attribute])) {
+            $attribute_object = $attributes[$attribute];
+        } elseif (isset($attributes['pa_' . $attribute])) {
+            $attribute_object = $attributes['pa' . $attribute];
+        } else {
+            return '';
+        }
+
+        return $attribute_object->is_taxonomy() ? implode(', ', lc_get_product_terms($this->get_id(), $attribute_object->get_name(), array('fields' => 'names'))) : lc_implode_text_attributes($attribute_object->get_options());
+    }
 
 
 
