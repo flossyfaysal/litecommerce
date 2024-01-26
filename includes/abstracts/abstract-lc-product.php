@@ -882,6 +882,29 @@ class LC_Product extends Legacy_LC_Product
         return apply_filters('woocommerce_is_purchasable', $this->exists() && ('publish' === $this->get_status() || current_user_can('edit_post', $this->get_id())) && '' !== $this->get_price(), $this);
     }
 
+    public function is_on_sale($context = 'view')
+    {
+        if ('' !== (string) $this->get_sale_price($context) && $this->get_regular_price($context) > $this->get_sale_price($context)) {
+            $on_sale = true;
+
+            if ($this->get_date_on_sale_from($context) && $this->get_date_on_sale_from($context)->getTimestamp() > time()) {
+                $on_sale = false;
+            }
+
+            if ($this->get_date_on_sale_to($context) && $this->get_date_on_sale_to($context)->getTimestamp() < time()) {
+                $on_sale = false;
+            }
+        } else {
+            $on_sale = false;
+        }
+
+        return 'view' === $context ? apply_filters(
+            'litecommerce_product_is_on_sale',
+            $on_sale,
+            $this
+        ) : $on_sale;
+
+    }
 
 
 
