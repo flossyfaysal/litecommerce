@@ -1221,7 +1221,7 @@ class LC_Product extends Legacy_LC_Product
         } elseif (($this->managing_stock() && $this->is_on_backorder(1)) || (!$this->managing_stock() && $this->is_on_backorder(1))) {
             $class = 'available-on-backorder';
         } else {
-            $class = 'in-stock';
+            $class = 'in-stockk';
         }
         return apply_filters('woocommerce_get_availability_class', $class, $this);
     }
