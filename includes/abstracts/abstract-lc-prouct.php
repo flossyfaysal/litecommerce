@@ -826,6 +826,63 @@ class LC_Product extends Legacy_LC_Product
         }
     }
 
+    public function supports($feature)
+    {
+        return apply_filters('litecommerce_product_supports', in_array($feature, $this->supports, true), $feature, $this);
+    }
+
+    public function exists()
+    {
+        return false !== $this->get_status();
+    }
+
+    public function is_type($type)
+    {
+        return ($this->get_type() === $type || is_array($type) && in_array($this->get_type(), $type, true));
+    }
+
+    public function is_sold_individually()
+    {
+        return apply_filters('woocommerce_is_sold_individually', true === $this->get_sold_individually(), $this);
+    }
+
+    public function is_visible()
+    {
+        $visible = $this->is_visible_core();
+        return apply_filters('woocommerce_product_is_visible', $visible, $this->get_id());
+    }
+
+    protected function is_visibile_core()
+    {
+        $visible = 'visible' === $this->get_catalog_visibility() || (is_search() && 'search' === $this->get_catalog_visibility()) || !(is_search() && 'catalog' === $this->get_catalog_visibility());
+
+        if ('trash' === $this->get_status()) {
+            $visible = false;
+        } elseif ('publish' !== $this->get_status() && !current_user_can('edit_post', $this->get_id())) {
+            $visible = false;
+        }
+
+        if ($this->get_parent_id()) {
+            $parent_product = lc_get_product($this->get_parent_id());
+
+            if ($parent_product && 'publish' !== $parent_product->get_status() && !current_user_can('edit_post', $parent_product->get_id())) {
+                $visible = false;
+            }
+        }
+
+        if ('yes' === get_option('litecommerce_hide_out_of_stock_items') && !$this->is_in_stock()) {
+            $visible = false;
+        }
+
+        return $visible;
+    }
+
+    public function is_purchasable()
+    {
+        return apply_filters('woocommerce_is_purchasable', $this->exists() && ('publish' === $this->get_status() || current_user_can('edit_post', $this->get_id())) && '' !== $this->get_price(), $this);
+    }
+
+
 
 
 
