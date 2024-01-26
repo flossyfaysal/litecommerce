@@ -1141,12 +1141,88 @@ class LC_Product extends Legacy_LC_Product
         return $attribute_object->is_taxonomy() ? implode(', ', lc_get_product_terms($this->get_id(), $attribute_object->get_name(), array('fields' => 'names'))) : lc_implode_text_attributes($attribute_object->get_options());
     }
 
+    public function get_rating_count($value = null)
+    {
+        $counts = $this->get_rating_counts();
 
+        if (is_null($value)) {
+            return array_sum($counts);
+        } elseif (isset($counts[$value])) {
+            return absint($counts[$value]);
+        } else {
+            return 0;
+        }
+    }
 
+    public function get_file($download_id)
+    {
+        $files = $this->get_downloads();
+        if ('' === $download_id) {
+            $file = count($files) ? current($files) : false;
+        } elseif (isset($files[$download_id])) {
+            $file = $files[$download_id];
+        } else {
+            $file = false;
+        }
+        return apply_filters(
+            'litecommerce_product_file',
+            $file,
+            $this,
+            $download_id
+        );
+    }
 
+    public function get_file_download_path($download_id)
+    {
+        $files = $this->get_downloads();
+        $file_path = isset($files[$download_id]) ? $files[$download_id]->get_file() : '';
 
+        return apply_filters('litecommerce_product_file_download_path', $file_path, $this, $download_id);
+    }
 
+    public function get_price_suffix($price = '', $qty = 1)
+    {
+        $html = '';
 
+        $suffix = get_option('woocommerce_price_display_suffix');
+        if ($suffix && wc_tax_enabled() && 'taxable' === $this->get_tax_status()) {
+            if ('' === $price) {
+                $price = $this->get_price();
+            }
+            $replacements = array(
+                '{price_including_tax}' => wc_price(wc_get_price_including_tax($this, array('qty' => $qty, 'price' => $price))),
+                '{price_excluding_tax}' => wc_price(wc_get_price_excluding_tax($this, array('qty' => $qty, 'price' => $price))),
+            );
+            $html = str_replace(array_keys($replacements), array_values($replacements), ' <small class="woocommerce-price-suffix">' . wp_kses_post($suffix) . '</small>');
+        }
+        return apply_filters('woocommerce_get_price_suffix', $html, $this, $price, $qty);
+    }
 
+    protected function get_availability_text()
+    {
+        if (!$this->is_in_stock()) {
+            $availability = __('Out of stock', 'woocommerce');
+        } elseif ($this->managing_stock() && $this->is_on_backorder(1)) {
+            $availability = $this->backorders_require_notification() ? __('Available on backorder', 'woocommerce') : '';
+        } elseif (!$this->managing_stock() && $this->is_on_backorder(1)) {
+            $availability = __('Available on backorder', 'woocommerce');
+        } elseif ($this->managing_stock()) {
+            $availability = wc_format_stock_for_display($this);
+        } else {
+            $availability = '';
+        }
+        return apply_filters('woocommerce_get_availability_text', $availability, $this);
+    }
 
+    protected function get_availability_class()
+    {
+        if (!$this->is_in_stock()) {
+            $class = 'out-of-stock';
+        } elseif (($this->managing_stock() && $this->is_on_backorder(1)) || (!$this->managing_stock() && $this->is_on_backorder(1))) {
+            $class = 'available-on-backorder';
+        } else {
+            $class = 'in-stock';
+        }
+        return apply_filters('woocommerce_get_availability_class', $class, $this);
+    }
 }
