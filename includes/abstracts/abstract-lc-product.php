@@ -906,6 +906,215 @@ class LC_Product extends Legacy_LC_Product
 
     }
 
+    public function has_dimensions()
+    {
+        return ($this->get_length() || $this->get_height() || $this->get_width && !$this->get_virtual());
+    }
+
+    public function has_weight()
+    {
+        return $this->get_weight() && !$this->get_virtual();
+    }
+
+    public function is_in_stock()
+    {
+        return apply_filters(
+            'litecommerce_product_is_in_stock',
+            'outofstock' !== $this->get_stock_status(),
+            $this
+        );
+    }
+
+    public function needs_shipping()
+    {
+        return apply_filters('litecommerce_product_needs_shipping', !$this->is_virtual(), $this);
+    }
+
+    public function is_taxable()
+    {
+        return apply_filters('woocommerce_product_is_taxable', $this->get_tax_status() === 'taxable' && wc_tax_enabled(), $this);
+    }
+
+    public function is_shipping_taxable()
+    {
+        return $this->needs_shipping() && ($this->get_tax_status() === 'taxable' || $this->get_tax_status() === 'shipping');
+    }
+
+    public function managing_stock()
+    {
+        if ('yes' === get_option('woocommerce_manage_stock')) {
+            return $this->get_manage_stock();
+        }
+        return false;
+    }
+
+    public function backorders_allowed()
+    {
+        return apply_filters('woocommerce_product_backorders_allowed', ('yes' === $this->get_backorders() || 'notify' === $this->get_backorders()), $this->get_id(), $this);
+    }
+
+    public function backorders_require_notification()
+    {
+        return apply_filters('woocommerce_product_backorders_require_notification', ($this->managing_stock() && 'notify' === $this->get_backorders()), $this);
+    }
+
+    public function is_on_backorder($qty_in_cart = 0)
+    {
+        if ('onbackorder' === $this->get_stock_status()) {
+            return true;
+        }
+
+        return $this->managing_stock() && $this->backorders_allowed() && ($this->get_stock_quantity() - $qty_in_cart) < 0;
+    }
+
+    public function has_enough_stock($quantity)
+    {
+        return !$this->managing_stock() || $this->backorders_allowed() || $this->get_stock_quantity() >= $quantity;
+    }
+
+    public function has_attributes()
+    {
+        foreach ($this->get_attributes() as $attribute) {
+            if ($attribute->get_visible()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public function has_child()
+    {
+        return 0 < count($this->get_children());
+    }
+
+    public function child_has_dimensions()
+    {
+        return false;
+    }
+
+    public function child_has_weight()
+    {
+        return false;
+    }
+
+    public function has_file($download_id = '')
+    {
+        return $this->is_downloadable() && $this->get_file($download_id);
+    }
+
+    public function has_options()
+    {
+        return apply_filters('woocommerce_product_has_options', false, $this);
+    }
+
+    public function get_title()
+    {
+        return apply_filters('woocommerce_product_title', $this->get_name(), $this);
+    }
+
+    public function get_permalink()
+    {
+        return get_permalink($this->get_id());
+    }
+
+    public function get_children()
+    {
+        return array();
+    }
+
+    public function get_stock_managed_by_id()
+    {
+        return $this->get_id();
+    }
+
+    public function get_price_html($deprecated = '')
+    {
+        if ('' === $this->get_price()) {
+            $price = apply_filters('woocommerce_empty_price_html', '', $this);
+        } elseif ($this->is_on_sale()) {
+            $price = wc_format_sale_price(wc_get_price_to_display($this, array('price' => $this->get_regular_price())), wc_get_price_to_display($this)) . $this->get_price_suffix();
+        } else {
+            $price = wc_price(wc_get_price_to_display($this)) . $this->get_price_suffix();
+        }
+
+        return apply_filters('woocommerce_get_price_html', $price, $this);
+    }
+
+    public function get_formatted_name()
+    {
+        if ($this->get_sku()) {
+            $identifier = $this->get_sku();
+        } else {
+            $identifier = '#' . $this->get_id();
+        }
+        return sprintf('%2$s (%1$s)', $identifier, $this->get_name());
+    }
+
+    public function get_min_purchase_quantity()
+    {
+        return 1;
+    }
+
+    public function get_max_purchase_quantity()
+    {
+        return $this->is_sold_individually() ? 1 : ($this->backorders_allowed() || !$this->managing_stock() ? -1 : $this->get_stock_quantity());
+    }
+
+    public function add_to_cart_url()
+    {
+        return apply_filters('woocommerce_product_add_to_cart_url', $this->get_permalink(), $this);
+    }
+
+    public function single_add_to_cart_text()
+    {
+        return apply_filters('woocommerce_product_single_add_to_cart_text', __('Add to cart', 'woocommerce'), $this);
+    }
+
+    public function add_to_cart_aria_describedby()
+    {
+        return apply_filters('litecommerce_product_add_cart_area_describedby', '', $this)
+        ;
+    }
+
+    public function add_to_cart_text()
+    {
+        return apply_filters('woocommerce_product_add_to_cart_text', __('Read more', 'woocommerce'), $this);
+    }
+
+    public function add_to_cart_description()
+    {
+        /* translators: %s: Product title */
+        return apply_filters('woocommerce_product_add_to_cart_description', sprintf(__('Read more about &ldquo;%s&rdquo;', 'woocommerce'), $this->get_name()), $this);
+    }
+
+    public function get_image($size = 'litecommerce_thumbnail', $attr = array(), $placeholder = true)
+    {
+        $image = '';
+        if ($this->get_image_id()) {
+            $image = wp_get_attachment_image($this->get_image_id(), $size, false, $attr);
+
+        } elseif ($this->get_parent_id()) {
+            $parent_product = lc_get_product(
+                $this->get_parent_id()
+            );
+            if ($parent_product) {
+                $image = $parent_product->get_image($size, $attr, $placeholder);
+            }
+        }
+
+        if (!$image && $placeholder) {
+            $image = lc_placeholder_img($size, $attr);
+        }
+
+        return apply_filters('litecommerce_product_get_image', $image, $this, $size, $attr, $placeholder, $image);
+    }
+
+
+
+
+
+
+
 
 
 
