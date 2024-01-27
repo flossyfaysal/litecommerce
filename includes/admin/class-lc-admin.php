@@ -1,8 +1,13 @@
-<?php 
+<?php
 
-class LC_Admin{
-    public function __construct(){
-        
+class LC_Admin
+{
+
+    protected $id;
+    protected $label;
+    public function __construct()
+    {
+
     }
 }
 
