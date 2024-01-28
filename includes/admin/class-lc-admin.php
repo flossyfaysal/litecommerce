@@ -16,6 +16,10 @@ class LC_Admin
         add_filter('action_scheduler_post_type_args', array($this, 'disable_webhook_post_export'));
         add_filter('admin_body_class', array($this, 'include_admin_body_class'), 9999);
 
+        if (isset($_GET['page']) && 'lc-addons' === $_GET['page']) {
+            add_filter('admin_body_class', array($this, 'LC_Admin_Addons', 'filter_admin_body_classes'));
+        }
+
     }
 
     public function preview_emails()

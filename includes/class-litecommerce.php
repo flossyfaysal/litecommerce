@@ -106,7 +106,7 @@ final class LiteCommerce
 
         // Tracks.
         if ($this->is_request('admin')) {
-            include_once LC_ABSPATH . '/includes/admin/class-lc-admin.php';
+            //include_once LC_ABSPATH . '/includes/admin/class-lc-admin.php';
         }
 
         $in_post_editor = doing_action('load-post.php') || doing_action('load-post-new.php');
@@ -224,7 +224,7 @@ final class LiteCommerce
 
     public function include_template_functinos()
     {
-        include_once LC_ABSPATH . '/includes/lc-template-functions.php';
+        //include_once LC_ABSPATH . '/includes/lc-template-functions.php';
     }
 
 }

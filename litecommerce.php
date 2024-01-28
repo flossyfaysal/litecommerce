@@ -14,17 +14,18 @@
  * @package LiteCommerce
  */
 
-defined( 'ABSPATH' ) || exit; 
+defined('ABSPATH') || exit;
 
-if( !defined( 'LC_PLUGIN_FILE') ){
-    define( 'LC_PLUGIN_FILE', __FILE__ );
+if (!defined('LC_PLUGIN_FILE')) {
+    define('LC_PLUGIN_FILE', __FILE__);
 }
 
-if( ! class_exists( 'LiteCommerce', false ) ){
-    include_once dirname( LC_PLUGIN_FILE ) . '/includes/class-litecommerce.php';
+if (!class_exists('LiteCommerce', false)) {
+    include_once dirname(LC_PLUGIN_FILE) . '/includes/class-litecommerce.php';
 }
 
-function LC(){
+function LC()
+{
     return LiteCommerce::instance();
 }
 
