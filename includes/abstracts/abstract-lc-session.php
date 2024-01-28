@@ -66,8 +66,5 @@ abstract class LC_Session
     {
         return $this->_customer_id;
     }
-
-
-
 }
 
