@@ -19,7 +19,7 @@ abstract class LC_Settings_API
     public $form_fields = array();
     protected $data = array();
 
-    public function ge_form_fields()
+    public function get_form_fields()
     {
         return apply_filters('litecommerce_settings_api_form_fields' . $this->id, array_map(array($this, 'set_defaults'), $this->form_fields));
     }
@@ -148,6 +148,26 @@ abstract class LC_Settings_API
                 echo '<p>' . wp_kses_post($error) . '</p>';
             }
             echo '</div>';
+        }
+    }
+
+    public function init_settings()
+    {
+        $this->settings = get_option($this->get_option_key(), null);
+        if (!is_array($this->settings)) {
+            $form_fields = $this->get_form_fields();
+            $this->settings = array_merge(
+                array_fill_keys(
+                    array_keys(
+                        $form_fields
+                    ),
+                    ''
+                ),
+                wp_list_pluck(
+                    $form_fields,
+                    'default'
+                )
+            );
         }
     }
 
