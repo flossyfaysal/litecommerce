@@ -171,6 +171,56 @@ abstract class LC_Settings_API
         }
     }
 
+    public function get_option($key, $empty_value = null)
+    {
+        if (empty($this->settings)) {
+            $this->init_settings();
+        }
+
+        if (!isset($this->settings[$key])) {
+            $form_fields = $this->get_form_fields();
+            $this->settings[$key] = isset($form_fields[$key]) ? $this->get_field_default($form_fields[$key]) : '';
+
+        }
+
+        if (!is_null($empty_value) && '' === $this->settings[$key]) {
+            $this->settings[$key] = $empty_value;
+        }
+
+        return $this->settings[$key];
+
+    }
+
+    public function get_field_key($key)
+    {
+        return $this->plugin_id . $this->id . '_' . $key;
+    }
+
+    public function generate_settings_html($form_fields = array(), $echo = true)
+    {
+        if (empty($form_fields)) {
+            $form_fields = $this->get_form_fields();
+        }
+
+        $html = '';
+        foreach ($form_fields as $key => $value) {
+            $type = $this->get_field_type($value);
+
+            if (method_exists($this, 'generate_' . $type . '_html')) {
+                $html .= $this->{'generate_' . $type . '_html'}($key, $value);
+            } elseif (has_filter('litecommerce_generate_' . $type . '_html')) {
+                $html .= apply_fitlers('litecommerce_generate_' . $type . '_html', '', $key, $value, $this);
+            } else {
+                $html .= $this->generate_settings_html($key, $value);
+            }
+        }
+
+        if ($echo) {
+            echo $html;
+        } else {
+            return $html;
+        }
+    }
 
 
 }
