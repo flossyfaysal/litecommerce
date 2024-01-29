@@ -124,7 +124,34 @@ abstract class LC_Settings_API
                 $this->add_error($e->getMessage());
             }
         }
+
+        $option_key = $this->get_option_key();
+        do_action('litecommerce_update_option', array('id' => $option_key));
+        return update_option($option_key, apply_filters('litecommerce_settings_api_sanitized_fields_' . $this->id, $this->settings), 'yes');
     }
+
+    public function add_error($error)
+    {
+        $this->errors[] = $error;
+    }
+
+    public function get_errors()
+    {
+        return $this->errors;
+    }
+
+    public function display_errors()
+    {
+        if ($this->get_errors()) {
+            echo '<div id="litecommerce_errors" class="errro notice is-dismissible">';
+            foreach ($this->get_errors as $error) {
+                echo '<p>' . wp_kses_post($error) . '</p>';
+            }
+            echo '</div>';
+        }
+    }
+
+
 
 }
 
