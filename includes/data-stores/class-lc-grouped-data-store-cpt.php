@@ -27,6 +27,7 @@ class LC_Product_Grouped_Data_Store_CPT extends LC_Product_Data_Store_CPT implem
             }
         }
 
+        // call parent
         parent::update_post_meta($product, $force);
     }
 }
