@@ -102,7 +102,29 @@ abstract class LC_Settings_API
         return update_option($this->get_option_key(), apply_filters('litecommerce_settings_api_sanitize_fields_' . $this->id, $this->settings), 'yes');
     }
 
+    public function process_admin_options()
+    {
+        $this->init_settings();
+        $post_data = $this->get_post_data();
 
+        foreach ($this->get_form_fields() as $key => $field) {
+            try {
+                $this->settings[$key] = $this->get_field_value($key, $field, $post_data);
+                if ('select' === $field['type'] || 'checkbox' === $field['type']) {
+                    do_action(
+                        'litecommerce_updfate_non_option_setting',
+                        array(
+                            'id' => $key,
+                            'type' => $field['type'],
+                            'value' => $this->settings[$key]
+                        )
+                    );
+                }
+            } catch (Exception $e) {
+                $this->add_error($e->getMessage());
+            }
+        }
+    }
 
 }
 
