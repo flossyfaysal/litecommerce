@@ -222,6 +222,516 @@ abstract class LC_Settings_API
         }
     }
 
+    public function get_tooltip_html($data)
+    {
+        if (true === $data['desc_tip']) {
+            $tip = $data['description'];
+        } elseif (!empty($data['desc_tip'])) {
+            $tip = $data['desc_tip'];
+        } else {
+            $tip = '';
+        }
+
+        return $tip ? lc_help_tip($tip, true) : '';
+    }
+
+    public function get_description_html($data)
+    {
+        if (true === $data['desc_tip']) {
+            $description = '';
+        } elseif (!empty($data['desc_tip'])) {
+            $description = $data['description'];
+        } elseif (!empty($data['description'])) {
+            $description = $data['description'];
+        } else {
+            $description = '';
+        }
+
+        return $description ? '<p class="description">' . wp_kses_post($description) . '</p>' . "\n" : '';
+    }
+
+    public function get_custom_attribute_html($data)
+    {
+        $custom_attributes = array();
+
+        if (!empty($data['custom_attributes']) && is_array($data['custom_attributes'])) {
+            foreach ($data['custom_attributes'] as $attribute => $attribute_value) {
+                $custom_attributes[] = esc_attr($attribute) . '="' . esc_attr($attribute_value) . '"';
+            }
+        }
+
+        return implode(' ', $custom_attributes);
+    }
+
+    public function generate_text_html($key, $data)
+    {
+        $field_key = $this->get_field_key($key);
+        $defaults = array(
+            'title' => '',
+            'disabled' => false,
+            'class' => '',
+            'css' => '',
+            'placeholder' => '',
+            'type' => 'text',
+            'desc_tip' => false,
+            'description' => '',
+            'custom_attributes' => array(),
+        );
+        $data = wp_parse_args($data, $defaults);
+
+        ob_start();
+        ?>
+        <tr>
+            <th>
+                <label>
+                    <?php echo wp_kses_post($data['title']); ?>
+                </label>
+            </th>
+            <td>
+                <fieldset>
+                    <legend class="screen-reader-text"><span>
+                            <?php echo wp_kses_post($data['title']); ?>
+                        </span></legend>
+                    <input class="input-text regular-input <?php echo esc_attr($data['class']); ?>"
+                        type="<?php echo esc_attr($data['type']); ?>" name="<?php echo esc_attr($field_key); ?>"
+                        id="<?php echo esc_attr($field_key); ?>" style="<?php echo esc_attr($data['css']); ?>"
+                        value="<?php echo esc_attr($this->get_option($key)); ?>"
+                        placeholder="<?php echo esc_attr($data['placeholder']); ?>" <?php disabled($data['disabled'], true); ?>
+                        <?php echo $this->get_custom_attribute_html($data); // WPCS: XSS ok. ?> />
+                    <?php echo $this->get_description_html($data); // WPCS: XSS ok. ?>
+                </fieldset>
+            </td>
+        <tr>
+            <?php
+
+            return ob_get_clean();
+    }
+
+    public function generate_safe_text_html($key, $data)
+    {
+        $data['type'] = 'text';
+        return $this->generate_text_html($key, $data);
+    }
+
+    public function generate_price_html($key, $data)
+    {
+        $field_key = $this->get_field_key($key);
+        $defaults = array(
+            'title' => '',
+            'disabled' => false,
+            'class' => '',
+            'css' => '',
+            'placeholder' => '',
+            'type' => 'text',
+            'desc_tip' => false,
+            'description' => '',
+            'custom_attributes' => array(),
+        );
+
+        $data = wp_parse_args($data, $defaults);
+
+        ob_start();
+        ?>
+        <tr valign="top">
+            <th scope="row" class="titledesc">
+                <label for="<?php echo esc_attr($field_key); ?>">
+                    <?php echo wp_kses_post($data['title']); ?>
+                    <?php echo $this->get_tooltip_html($data); // WPCS: XSS ok. ?>
+                </label>
+            </th>
+            <td class="forminp">
+                <fieldset>
+                    <legend class="screen-reader-text"><span>
+                            <?php echo wp_kses_post($data['title']); ?>
+                        </span></legend>
+                    <input class="wc_input_price input-text regular-input <?php echo esc_attr($data['class']); ?>" type="text"
+                        name="<?php echo esc_attr($field_key); ?>" id="<?php echo esc_attr($field_key); ?>"
+                        style="<?php echo esc_attr($data['css']); ?>"
+                        value="<?php echo esc_attr(wc_format_localized_price($this->get_option($key))); ?>"
+                        placeholder="<?php echo esc_attr($data['placeholder']); ?>" <?php disabled($data['disabled'], true); ?>
+                        <?php echo $this->get_custom_attribute_html($data); // WPCS: XSS ok. ?> />
+                    <?php echo $this->get_description_html($data); // WPCS: XSS ok. ?>
+                </fieldset>
+            </td>
+        </tr>
+        <?php
+
+        return ob_get_clean();
+    }
+
+    public function generate_decimal_html($key, $data)
+    {
+        $field_key = $this->get_field_key($key);
+        $defaults = array(
+            'title' => '',
+            'disabled' => false,
+            'class' => '',
+            'css' => '',
+            'placeholder' => '',
+            'type' => 'text',
+            'desc_tip' => false,
+            'description' => '',
+            'custom_attributes' => array(),
+        );
+
+        $data = wp_parse_args($data, $defaults);
+
+        ob_start();
+        ?>
+        <tr valign="top">
+            <th scope="row" class="titledesc">
+                <label for="<?php echo esc_attr($field_key); ?>">
+                    <?php echo wp_kses_post($data['title']); ?>
+                    <?php echo $this->get_tooltip_html($data); // WPCS: XSS ok. ?>
+                </label>
+            </th>
+            <td class="forminp">
+                <fieldset>
+                    <legend class="screen-reader-text"><span>
+                            <?php echo wp_kses_post($data['title']); ?>
+                        </span></legend>
+                    <input class="wc_input_decimal input-text regular-input <?php echo esc_attr($data['class']); ?>" type="text"
+                        name="<?php echo esc_attr($field_key); ?>" id="<?php echo esc_attr($field_key); ?>"
+                        style="<?php echo esc_attr($data['css']); ?>"
+                        value="<?php echo esc_attr(wc_format_localized_decimal($this->get_option($key))); ?>"
+                        placeholder="<?php echo esc_attr($data['placeholder']); ?>" <?php disabled($data['disabled'], true); ?>
+                        <?php echo $this->get_custom_attribute_html($data); // WPCS: XSS ok. ?> />
+                    <?php echo $this->get_description_html($data); // WPCS: XSS ok. ?>
+                </fieldset>
+            </td>
+        </tr>
+        <?php
+
+        return ob_get_clean();
+    }
+
+    public function generate_password_html($key, $data)
+    {
+        $data['type'] = 'password';
+        return $this->generate_text_html($key, $data);
+    }
+
+    public function generate_color_html($key, $data)
+    {
+        $field_key = $this->get_field_key($key);
+        $defaults = array(
+            'title' => '',
+            'disabled' => false,
+            'class' => '',
+            'css' => '',
+            'placeholder' => '',
+            'desc_tip' => false,
+            'description' => '',
+            'custom_attributes' => array(),
+        );
+
+        $data = wp_parse_args($data, $defaults);
+
+        ob_start();
+        ?>
+        <tr valign="top">
+            <th scope="row" class="titledesc">
+                <label for="<?php echo esc_attr($field_key); ?>">
+                    <?php echo wp_kses_post($data['title']); ?>
+                    <?php echo $this->get_tooltip_html($data); // WPCS: XSS ok. ?>
+                </label>
+            </th>
+            <td class="forminp">
+                <fieldset>
+                    <legend class="screen-reader-text"><span>
+                            <?php echo wp_kses_post($data['title']); ?>
+                        </span></legend>
+                    <span class="colorpickpreview"
+                        style="background:<?php echo esc_attr($this->get_option($key)); ?>;">&nbsp;</span>
+                    <input class="colorpick <?php echo esc_attr($data['class']); ?>" type="text"
+                        name="<?php echo esc_attr($field_key); ?>" id="<?php echo esc_attr($field_key); ?>"
+                        style="<?php echo esc_attr($data['css']); ?>" value="<?php echo esc_attr($this->get_option($key)); ?>"
+                        placeholder="<?php echo esc_attr($data['placeholder']); ?>" <?php disabled($data['disabled'], true); ?>
+                        <?php echo $this->get_custom_attribute_html($data); // WPCS: XSS ok. ?> />
+                    <div id="colorPickerDiv_<?php echo esc_attr($field_key); ?>" class="colorpickdiv"
+                        style="z-index: 100; background: #eee; border: 1px solid #ccc; position: absolute; display: none;">
+                    </div>
+                    <?php echo $this->get_description_html($data); // WPCS: XSS ok. ?>
+                </fieldset>
+            </td>
+        </tr>
+        <?php
+
+        return ob_get_clean();
+    }
+
+
+    public function generate_textarea_html($key, $data)
+    {
+        $field_key = $this->get_field_key($key);
+        $defaults = array(
+            'title' => '',
+            'disabled' => false,
+            'class' => '',
+            'css' => '',
+            'placeholder' => '',
+            'type' => 'text',
+            'desc_tip' => false,
+            'description' => '',
+            'custom_attributes' => array(),
+        );
+
+        $data = wp_parse_args($data, $defaults);
+
+        ob_start();
+        ?>
+        <tr valign="top">
+            <th scope="row" class="titledesc">
+                <label for="<?php echo esc_attr($field_key); ?>">
+                    <?php echo wp_kses_post($data['title']); ?>
+                    <?php echo $this->get_tooltip_html($data); // WPCS: XSS ok. ?>
+                </label>
+            </th>
+            <td class="forminp">
+                <fieldset>
+                    <legend class="screen-reader-text"><span>
+                            <?php echo wp_kses_post($data['title']); ?>
+                        </span></legend>
+                    <textarea rows="3" cols="20" class="input-text wide-input <?php echo esc_attr($data['class']); ?>"
+                        type="<?php echo esc_attr($data['type']); ?>" name="<?php echo esc_attr($field_key); ?>"
+                        id="<?php echo esc_attr($field_key); ?>" style="<?php echo esc_attr($data['css']); ?>"
+                        placeholder="<?php echo esc_attr($data['placeholder']); ?>" <?php disabled($data['disabled'], true); ?>
+                        <?php echo $this->get_custom_attribute_html($data); // WPCS: XSS ok. ?>><?php echo esc_textarea($this->get_option($key)); ?></textarea>
+                    <?php echo $this->get_description_html($data); // WPCS: XSS ok. ?>
+                </fieldset>
+            </td>
+        </tr>
+        <?php
+
+        return ob_get_clean();
+    }
+
+    public function generate_checkbox_html($key, $data)
+    {
+        $field_key = $this->get_field_key($key);
+        $defaults = array(
+            'title' => '',
+            'label' => '',
+            'disabled' => false,
+            'class' => '',
+            'css' => '',
+            'type' => 'text',
+            'desc_tip' => false,
+            'description' => '',
+            'custom_attributes' => array(),
+        );
+
+        $data = wp_parse_args($data, $defaults);
+
+        if (!$data['label']) {
+            $data['label'] = $data['title'];
+        }
+
+        ob_start();
+        ?>
+        <tr valign="top">
+            <th scope="row" class="titledesc">
+                <label for="<?php echo esc_attr($field_key); ?>">
+                    <?php echo wp_kses_post($data['title']); ?>
+                    <?php echo $this->get_tooltip_html($data); // WPCS: XSS ok. ?>
+                </label>
+            </th>
+            <td class="forminp">
+                <fieldset>
+                    <legend class="screen-reader-text"><span>
+                            <?php echo wp_kses_post($data['title']); ?>
+                        </span></legend>
+                    <label for="<?php echo esc_attr($field_key); ?>">
+                        <input <?php disabled($data['disabled'], true); ?> class="<?php echo esc_attr($data['class']); ?>"
+                            type="checkbox" name="<?php echo esc_attr($field_key); ?>" id="<?php echo esc_attr($field_key); ?>"
+                            style="<?php echo esc_attr($data['css']); ?>" value="1" <?php checked($this->get_option($key), 'yes'); ?>         <?php echo $this->get_custom_attribute_html($data); // WPCS: XSS ok. ?> />
+                        <?php echo wp_kses_post($data['label']); ?>
+                    </label><br />
+                    <?php echo $this->get_description_html($data); // WPCS: XSS ok. ?>
+                </fieldset>
+            </td>
+        </tr>
+        <?php
+
+        return ob_get_clean();
+    }
+
+    public function generate_multiselect_html($key, $data)
+    {
+        $field_key = $this->get_field_key($key);
+        $defaults = array(
+            'title' => '',
+            'disabled' => false,
+            'class' => '',
+            'css' => '',
+            'placeholder' => '',
+            'type' => 'text',
+            'desc_tip' => false,
+            'description' => '',
+            'custom_attributes' => array(),
+            'select_buttons' => false,
+            'options' => array(),
+        );
+
+        $data = wp_parse_args($data, $defaults);
+        $value = (array) $this->get_option($key, array());
+
+        ob_start();
+        ?>
+        <tr valign="top">
+            <th scope="row" class="titledesc">
+                <label for="<?php echo esc_attr($field_key); ?>">
+                    <?php echo wp_kses_post($data['title']); ?>
+                    <?php echo $this->get_tooltip_html($data); // WPCS: XSS ok. ?>
+                </label>
+            </th>
+            <td class="forminp">
+                <fieldset>
+                    <legend class="screen-reader-text"><span>
+                            <?php echo wp_kses_post($data['title']); ?>
+                        </span></legend>
+                    <select multiple="multiple" class="multiselect <?php echo esc_attr($data['class']); ?>"
+                        name="<?php echo esc_attr($field_key); ?>[]" id="<?php echo esc_attr($field_key); ?>"
+                        style="<?php echo esc_attr($data['css']); ?>" <?php disabled($data['disabled'], true); ?>         <?php echo $this->get_custom_attribute_html($data); // WPCS: XSS ok. ?>>
+                        <?php foreach ((array) $data['options'] as $option_key => $option_value): ?>
+                            <?php if (is_array($option_value)): ?>
+                                <optgroup label="<?php echo esc_attr($option_key); ?>">
+                                    <?php foreach ($option_value as $option_key_inner => $option_value_inner): ?>
+                                        <option value="<?php echo esc_attr($option_key_inner); ?>" <?php selected(in_array((string) $option_key_inner, $value, true), true); ?>>
+                                            <?php echo esc_html($option_value_inner); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </optgroup>
+                            <?php else: ?>
+                                <option value="<?php echo esc_attr($option_key); ?>" <?php selected(in_array((string) $option_key, $value, true), true); ?>>
+                                    <?php echo esc_html($option_value); ?>
+                                </option>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                    </select>
+                    <?php echo $this->get_description_html($data); // WPCS: XSS ok. ?>
+                    <?php if ($data['select_buttons']): ?>
+                        <br /><a class="select_all button" href="#">
+                            <?php esc_html_e('Select all', 'woocommerce'); ?>
+                        </a> <a class="select_none button" href="#">
+                            <?php esc_html_e('Select none', 'woocommerce'); ?>
+                        </a>
+                    <?php endif; ?>
+                </fieldset>
+            </td>
+        </tr>
+        <?php
+
+        return ob_get_clean();
+    }
+
+    public function generate_title_html($key, $data)
+    {
+        $field_key = $this->get_field_key($key);
+        $defaults = array(
+            'title' => '',
+            'class' => '',
+        );
+
+        $data = wp_parse_args($data, $defaults);
+
+        ob_start();
+        ?>
+        </table>
+        <h3 class="wc-settings-sub-title <?php echo esc_attr($data['class']); ?>" id="<?php echo esc_attr($field_key); ?>">
+            <?php echo wp_kses_post($data['title']); ?>
+        </h3>
+        <?php if (!empty($data['description'])): ?>
+            <p>
+                <?php echo wp_kses_post($data['description']); ?>
+            </p>
+        <?php endif; ?>
+        <table class="form-table">
+            <?php
+
+            return ob_get_clean();
+    }
+
+    public function validate_text_field($key, $value)
+    {
+        $value = is_null($value) ? '' : $value;
+        return wp_kses_post(trim(stripslashes($value)));
+    }
+
+    public function format_settings($value)
+    {
+        wc_deprecated_function('format_settings', '2.6');
+        return $value;
+    }
+
+    public function validate_settings_fields($form_fields = array())
+    {
+        wc_deprecated_function('validate_settings_fields', '2.6');
+    }
+
+    public function validate_multiselect_field($key, $value)
+    {
+        return is_array($value) ? array_map('wc_clean', array_map('stripslashes', $value)) : '';
+    }
+
+    public function validate_select_field($key, $value)
+    {
+        $value = is_null($value) ? '' : $value;
+        return wc_clean(stripslashes($value));
+    }
+
+    public function validate_checkbox_field($key, $value)
+    {
+        return !is_null($value) ? 'yes' : 'no';
+    }
+
+    public function validate_textarea_field($key, $value)
+    {
+        $value = is_null($value) ? '' : $value;
+        return wp_kses(
+            trim(stripslashes($value)),
+            array_merge(
+                array(
+                    'iframe' => array(
+                        'src' => true,
+                        'style' => true,
+                        'id' => true,
+                        'class' => true,
+                    ),
+                ),
+                wp_kses_allowed_html('post')
+            )
+        );
+    }
+
+    public function validate_password_field($key, $value)
+    {
+        $value = is_null($value) ? '' : $value;
+        return trim(stripslashes($value));
+    }
+
+    public function validate_decimal_field($key, $value)
+    {
+        $value = is_null($value) ? '' : $value;
+        return ('' === $value) ? '' : wc_format_decimal(trim(stripslashes($value)));
+    }
+
+    public function validate_price_field($key, $value)
+    {
+        $value = is_null($value) ? '' : $value;
+        return ('' === $value) ? '' : wc_format_decimal(trim(stripslashes($value)));
+    }
+
+    public function validate_safe_text_field(string $key, ?string $value): string
+    {
+        return wc_get_container()->get(HtmlSanitizer::class)->sanitize((string) $value, HtmlSanitizer::LOW_HTML_BALANCED_TAGS_NO_LINKS);
+    }
+
+    public function validate_text_field($key, $value)
+    {
+        $value = is_null($value) ? '' : $value;
+        return wp_kses_post(trim(stripslashes($value)));
+    }
 
 }
 
