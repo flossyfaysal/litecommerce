@@ -43,4 +43,28 @@ class LC_Product_Grouped_Data_Store_CPT extends LC_Product_Data_Store_CPT implem
     {
         $this->update_prices_from_children($product);
     }
+
+    protected function update_prices_from_children(&$product)
+    {
+        $child_prices = array();
+        foreach ($product->get_children('edit') as $child_id) {
+            $child = wc_get_product($child_id);
+            if ($child) {
+                $child_prices[] = $child->get_price('edit');
+            }
+        }
+        $child_prices = array_filter($child_prices);
+        delete_post_meta($product->get_id(), '_price');
+        delete_post_meta($product->get_id(), '_sale_price');
+        delete_post_meta($product->get_id(), '_regular_price');
+
+        if (!empty($child_prices)) {
+            add_post_meta($product->get_id(), '_price', min($child_prices));
+            add_post_meta($product->get_id(), '_price', max($child_prices));
+        }
+
+        $this->update_lookup_table($product->get_id(), 'lc_product_meta_lookup');
+
+        do_action('litecommerce_updated_product_price', $product->get_id());
+    }
 }
