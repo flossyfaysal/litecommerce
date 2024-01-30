@@ -30,4 +30,17 @@ class LC_Product_Grouped_Data_Store_CPT extends LC_Product_Data_Store_CPT implem
         // call parent
         parent::update_post_meta($product, $force);
     }
+
+    protected function handle_updated_props(&$product)
+    {
+        if (in_array('children', $this->updated_props, true)) {
+            $this->update_prices_from_children($product);
+        }
+        parent::handle_updated_props($product);
+    }
+
+    public function sync_price(&$product)
+    {
+        $this->update_prices_from_children($product);
+    }
 }
