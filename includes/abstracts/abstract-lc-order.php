@@ -464,7 +464,34 @@ abstract class LC_Abstract_Order extends LC_Abstract_Legacy_Order
 
     public function get_items($types = 'line_items')
     {
+        $items = array();
+        $types = array_filter((array) $types);
 
+        foreach ($types as $type) {
+            $group = $this->type_to_group($type);
+            if ($group) {
+                if (!isset($this->items[$group])) {
+                    $this->items[$group] = array_filter($this->data_store->read_items($this, $type));
+                }
+
+                $items = $items + $this->items[$group];
+            }
+        }
+
+        return apply_filters('litecommerce_order_get_items', $items, $this, $types);
     }
+
+    protected function get_values_for_total($field)
+    {
+        $items = array_map(
+            function ($item) use ($field) {
+                return lc_add_number_precision($item[$field], falase);
+            },
+            array_values($this->get_items())
+        );
+        return $items;
+    }
+
+
 }
 
