@@ -546,7 +546,32 @@ abstract class LC_Abstract_Order extends LC_Abstract_Legacy_Order
         return apply_filters('litecommerce_get_item_count', $count, $item_type, $this);
     }
 
+    public function get_item($item_id, $load_from_db = true)
+    {
+        if ($load_from_db) {
+            return LC_Order_Factory::get_order_item(
+                $item_id
+            );
+        }
 
+        if ($this->items) {
+            foreach ($this->items as $group => $items) {
+                if (isset($items[$item_id])) {
+                    return $items[$item_id];
+                }
+            }
+        }
+
+        $type = $this->data_store->get_order_item_type($this, $item_id);
+
+        if (!$type) {
+            return false;
+        }
+
+        $items = $this->get_items($type);
+
+        return empty($items[$item_id]) ? $items[$item_id] : false;
+    }
 
 }
 
