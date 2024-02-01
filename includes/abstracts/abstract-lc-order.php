@@ -492,6 +492,61 @@ abstract class LC_Abstract_Order extends LC_Abstract_Legacy_Order
         return $items;
     }
 
+    public function get_coupons()
+    {
+        return $this->get_items('coupon');
+    }
+
+    public function get_fees()
+    {
+        return $this->get_items('fee');
+    }
+
+    public function get_taxes()
+    {
+        return $this->get_items('tax');
+    }
+
+    public function get_shipping_methods()
+    {
+        return $this->get_items('shipping');
+    }
+
+    public function get_shipping_method()
+    {
+        $names = array();
+        foreach ($this->get_shipping_methods() as $shipping_method) {
+            $names[] = $shipping_method->get_name();
+        }
+        return apply_filters('woocommerce_order_shipping_method', implode(', ', $names), $this);
+    }
+
+    public function get_coupon_code()
+    {
+        $coupon_codes = array();
+        $coupons = $this->get_items('coupon');
+
+        if ($coupons) {
+            foreach ($coupons as $coupon) {
+                $coupon_codes[] = $coupon->get_code();
+            }
+        }
+        return $coupon_codes;
+    }
+
+    public function get_item_count($item_type = '')
+    {
+        $items = $this->get_items(empty($item_type) ? 'line_item' : $item_type);
+        $count = 0;
+
+        foreach ($items as $item) {
+            $count += $item->get_quantity();
+        }
+
+        return apply_filters('litecommerce_get_item_count', $count, $item_type, $this);
+    }
+
+
 
 }
 
