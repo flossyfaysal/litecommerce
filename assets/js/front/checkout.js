@@ -112,5 +112,49 @@ jQuery(function ($) {
       if( 0 === $payment_methods.filter(":checked").length){
         $payment_methods.eq(0).prop("checked", true);
       }
+
+      var checkedPaymentMethod = $payment_methods.filter(":checked").eq(0).prop("id");
+
+      if($payment_methods.length > 1){
+        $('div.payment_box:not(".' + checkedPaymentMethod + '")').filter(":visible").slideUp(0);
+      }
+
+      $payment_methods.filter(":checked").eq(0).trigger("click");
+
+      get_payment_method: function(){
+        return lc_chckout_form.$checkout_form.find('input[name="payment_method"]:checked').val();
+      }
+
+      payment_method_selected: function(e){
+        e.stopPropogation();
+        if($(".payment_methods input.input-radio").length > 1){
+            var target_payment_box = $("div.payment_box." + $(this).attr("ID")),
+            is_checked = $(this).is(":checked");
+
+            if(is_checked && !target_payment_box.is(":visible")){
+                $("div.payment_box").filter(":visible").slideUp(230);
+                if(is_checked){
+                    target_payment_box.slideDown(230);
+                }
+            }
+        }else{
+            $("div.payment_box").show();
+        }
+
+        if($(this).data("order_button_text")){
+            $("#place_order").text($(this).data("order_button_text"));
+        }else{
+            $("#place_order").text($("#place_order").data("value"));
+        }
+
+        var selectedPaymentMethod = $('.woocommerce-checkout input[name="payment_method"]:checked').attr("id");
+
+        if(selectedPaymentMethod !== lc_checkout_form.selectedPaymentMethod){
+            $(document.body).trigger("payment_method_selected");
+        }
+
+        lc_checkout_form.selectedPaymentMethod = selectedPaymentMethod;
+      }
     };
+
 });
