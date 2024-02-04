@@ -1,4 +1,6 @@
 <?php
+use Automattic\WooCommerce\Utilities\ArrayUtil;
+use Automattic\WooCommerce\Utilities\StringUtil;
 
 /**
  * Litecommerce LC_AJAX Ajax Event Handlers.
@@ -197,5 +199,89 @@ class LC_AJAX
         );
 
         wp_send_json($data);
+    }
+
+    public static function apply_coupon()
+    {
+        check_ajax_referer('apply-coupon', 'security');
+
+        $coupon_code = ArrayUtil::get_value_or_default($_POST, 'coupon_code');
+
+        if (!StringUtil::is_null_or_whitespace($coupon_code)) {
+            LC()->cart->add_discount(lc_format_coupon_code(wp_unslash($coupon_code)));
+
+        } else {
+            lc_add_notice(
+                LC_Coupon::get_generic_coupon_error(LC_Coupon::E_LC_COUPON_PLEASE_ENTER),
+                'error'
+            );
+        }
+
+        lc_print_notices();
+        wp_die();
+    }
+
+    public static function remove_coupon()
+    {
+        check_ajax_referer('remove-coupon', 'security');
+
+        $coupon = isset($_POST['coupon']) ?
+            lc_format_coupon_code(wp_unslash($_POST['coupon'])) : false;
+        if (StringUtil::is_null_or_whitespace($coupon)) {
+            wc_add_notice(__('Sorry there was a problem removing this coupon', 'litecommerce'), 'error');
+        } else {
+            LC()->cart->remove_coupon($coupon);
+            lc_add_notice(__('Couopn has been removed'));
+        }
+
+        lc_print_notices();
+        wp_die();
+    }
+
+    public static function update_shipping_method()
+    {
+        check_ajax_referer('update-shipping-method', 'security');
+
+        lc_maybe_define_constant('LITECOMMERCE_CART', true);
+
+        $chosen_shipping_method = LC()->session->get('chosen_shipping_method');
+        $posted_shipping_method = isset($_POST['shipping_method']) ? lc_clean(wp_unslash($_POST['shipping_method'])) : array();
+
+        if (is_array($posted_shipping_method)) {
+            foreach ($posted_shipping_method as $i => $value) {
+                $chosen_shipping_method[$i] = $value;
+            }
+        }
+
+        LC()->session->get('chosen_shipping_methods', $chosen_shipping_method);
+
+        self::get_cart_totals();
+    }
+
+    public static function get_cart_totals()
+    {
+        lc_maybe_define_constant('LITECOMMERCE_CART', true);
+        LC()->cart->calculate_totals();
+        litecommerce_cart_totals();
+        wp_die();
+    }
+
+    private static function update_order_review_expired()
+    {
+        wp_send_json(
+            array(
+                'fragments' => apply_filters(
+                    'woocommerce_update_order_review_fragments',
+                    array(
+                        'form.woocommerce-checkout' => wc_print_notice(
+                            esc_html__('Sorry, your session has expired.', 'woocommerce') . ' <a href="' . esc_url(wc_get_page_permalink('shop')) . '" class="wc-backward">' . esc_html__('Return to shop', 'woocommerce') . '</a>',
+                            'error',
+                            array(),
+                            true
+                        ),
+                    )
+                ),
+            )
+        );
     }
 }
