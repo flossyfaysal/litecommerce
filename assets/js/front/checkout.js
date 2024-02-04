@@ -121,151 +121,148 @@ jQuery(function ($) {
       }
 
       $payment_methods.filter(":checked").eq(0).trigger("click");
+    },
+    get_payment_method: function(){
+      return lc_chckout_form.$checkout_form.find('input[name="payment_method"]:checked').val();
+    },
+    payment_method_selected: function(e){
+      e.stopPropogation();
+      if($(".payment_methods input.input-radio").length > 1){
+          var target_payment_box = $("div.payment_box." + $(this).attr("ID")),
+          is_checked = $(this).is(":checked");
 
-      get_payment_method: function(){
-        return lc_chckout_form.$checkout_form.find('input[name="payment_method"]:checked').val();
+          if(is_checked && !target_payment_box.is(":visible")){
+              $("div.payment_box").filter(":visible").slideUp(230);
+              if(is_checked){
+                  target_payment_box.slideDown(230);
+              }
+          }
+      }else{
+          $("div.payment_box").show();
       }
 
-      payment_method_selected: function(e){
-        e.stopPropogation();
-        if($(".payment_methods input.input-radio").length > 1){
-            var target_payment_box = $("div.payment_box." + $(this).attr("ID")),
-            is_checked = $(this).is(":checked");
+      if($(this).data("order_button_text")){
+          $("#place_order").text($(this).data("order_button_text"));
+      }else{
+          $("#place_order").text($("#place_order").data("value"));
+      }
 
-            if(is_checked && !target_payment_box.is(":visible")){
-                $("div.payment_box").filter(":visible").slideUp(230);
-                if(is_checked){
-                    target_payment_box.slideDown(230);
-                }
-            }
-        }else{
-            $("div.payment_box").show();
-        }
+      var selectedPaymentMethod = $('.litecommerce-checkout input[name="payment_method"]:checked').attr("id");
 
-        if($(this).data("order_button_text")){
-            $("#place_order").text($(this).data("order_button_text"));
-        }else{
-            $("#place_order").text($("#place_order").data("value"));
-        }
+      if(selectedPaymentMethod !== lc_checkout_form.selectedPaymentMethod){
+          $(document.body).trigger("payment_method_selected");
+      }
 
-        var selectedPaymentMethod = $('.litecommerce-checkout input[name="payment_method"]:checked').attr("id");
+      lc_checkout_form.selectedPaymentMethod = selectedPaymentMethod;
+    },
+    toggle_create_account: function(){
+      $("div.create-account").hide();
+      if($(this).is(":checked")){
+        $("#account_password").val("").trigger("change");
+        $("div.create-account").slideDown();
+      }
+    },
+    init_checkout: function(){
+      $(document.body).trigger("update_checkout");
+    },
+    maybe_input_changed: function(e){
+      if(lc_chckout_form.dirtyInput){
+        lc_checkout_form.input_changed(e);
+      }
+    },
+    queue_update_checkout: function(e){
+      var code = e.keyCode || e.which || 0;
+      if(code === 9){
+        return true; 
+      }
 
-        if(selectedPaymentMethod !== lc_checkout_form.selectedPaymentMethod){
-            $(document.body).trigger("payment_method_selected");
-        }
-
-        lc_checkout_form.selectedPaymentMethod = selectedPaymentMethod;
-      },
-      toggle_create_account: function(){
-        $("div.create-account").hide();
-        if($(this).is(":checked")){
-          $("#account_password").val("").trigger("change");
-          $("div.create-account").slideDown();
-        }
-      },
-      init_checkout: function(){
-        $(document.body).trigger("update_checkout");
-      },
-      maybe_input_changed: function(e){
-        if(lc_chckout_form.dirtyInput){
-          lc_checkout_form.input_changed(e);
-        }
-      },
-      queue_update_checkout: function(e){
-        var code = e.keyCode || e.which || 0;
-        if(code === 9){
-          return true; 
-        }
-
-        lc_checkout_form.dirtyInput = this;
+      lc_checkout_form.dirtyInput = this;
+      lc_checkout_form.reset_update_checkout_timer();
+      lc_checkout_form.updateTimer = setTimeout(
+        lc_checkout_form.maybe_update_checkout,"1000"
+      );
+    },
+    trigger_update_checkout: function(){
         lc_checkout_form.reset_update_checkout_timer();
-        lc_checkout_form.updateTimer = setTimeout(
-          lc_checkout_form.maybe_update_checkout,"1000"
-        );
-      },
-      trigger_update_checkout: function(){
-          lc_checkout_form.reset_update_checkout_timer();
-          lc_checkout_form.dirtyInput = false; 
-          $(document.body).trigger("update_checkout");
-      },
-      maybe_update_checkout: function(){
-        var update_totals = true;
-        if($(lc_checkout_form.dirtyInput).length){
-          var $required_inputs = $(lc_checkout_form.dirtyInput).closets("div").find(".address-field.validate-required");
-          
-          if($required_inputs.length){
-            $required_inputs.each(function(){
-              if($(this).find("input.input-text").val() === ""){
-                update_totals = false;
-              }
-            });
-          }
-        }
-        if(update_totals){
-          lc_checkout_form.trigger_update_checkout();
-        }
-      },
-
-      ship_to_different_address: function(){
-        $("div.shipping_address").hide();
-        if($(this).is(":checked")){
-          $("div.shipping_address").slideDown();
-        }
-      },
-      reset_update_checkout_timer: function(){
-        clearTimeout(lc_chckout_form.updateTimer());
-      },
-      is_valid_json: function(raw_json){
-        try{
-          var json = JSON.parse(raw_json);
-          return json && "object" === typeof json;
-        }catch(e){
-          return false;
-        }
-      },
-      validate_field: function(e){
-        var $this = $(this);
-        $parent = $this.closets(".form-row");
-        validated = true,
-        validate_required = $parent.is(".validate-required"),
-        validate_email  = $parent.is(".validate-email"),
-        validate_phone = $parent.is(".validate-phone"),
-        pattern = "",
-        event_type = e.type;
-
-        if("input" === event_type){
-          $parent.removeClass(
-            "litecommerce-invalid",
-            "litecommerce-invalid-required-field",
-            "litecommerce-invalid-email",
-            "litecommerce-invalid-phone",
-            "litecommerce-validated"
-          );
-
-          if(validate_required){
-            if("checkbox" === $this.attr("type") && !$this.is(":checked")){
-              $parent
-              .removeClass("litecommerce-validated")
-              .addClass("litecommerce-invalid litecommerce-invalid-required-field");
-              validated = false;
+        lc_checkout_form.dirtyInput = false; 
+        $(document.body).trigger("update_checkout");
+    },
+    maybe_update_checkout: function(){
+      var update_totals = true;
+      if($(lc_checkout_form.dirtyInput).length){
+        var $required_inputs = $(lc_checkout_form.dirtyInput).closets("div").find(".address-field.validate-required");
+        
+        if($required_inputs.length){
+          $required_inputs.each(function(){
+            if($(this).find("input.input-text").val() === ""){
+              update_totals = false;
             }
-          }else if( $this.val() === ""){
-            $parent.removeClass("woocommercc-validated")
-            .addClass("litecommerce-invalide litecommerce-invalid-required-field");
+          });
+        }
+      }
+      if(update_totals){
+        lc_checkout_form.trigger_update_checkout();
+      }
+    },
+
+    ship_to_different_address: function(){
+      $("div.shipping_address").hide();
+      if($(this).is(":checked")){
+        $("div.shipping_address").slideDown();
+      }
+    },
+    reset_update_checkout_timer: function(){
+      clearTimeout(lc_chckout_form.updateTimer());
+    },
+    is_valid_json: function(raw_json){
+      try{
+        var json = JSON.parse(raw_json);
+        return json && "object" === typeof json;
+      }catch(e){
+        return false;
+      }
+    },
+    validate_field: function(e){
+      var $this = $(this);
+      $parent = $this.closets(".form-row");
+      validated = true,
+      validate_required = $parent.is(".validate-required"),
+      validate_email  = $parent.is(".validate-email"),
+      validate_phone = $parent.is(".validate-phone"),
+      pattern = "",
+      event_type = e.type;
+
+      if("input" === event_type){
+        $parent.removeClass(
+          "litecommerce-invalid",
+          "litecommerce-invalid-required-field",
+          "litecommerce-invalid-email",
+          "litecommerce-invalid-phone",
+          "litecommerce-validated"
+        );
+
+        if(validate_required){
+          if("checkbox" === $this.attr("type") && !$this.is(":checked")){
+            $parent
+            .removeClass("litecommerce-validated")
+            .addClass("litecommerce-invalid litecommerce-invalid-required-field");
             validated = false;
           }
-
-          if(validated){
-            $parent
-            .removeClass(
-              "litecommerce-invalid litecommerce-invalid-required-field litecommerce-invalid-email litecommerce-invalid-phone"
-            ).addClass("litecommerce-validated");
-          }
+        }else if( $this.val() === ""){
+          $parent.removeClass("woocommercc-validated")
+          .addClass("litecommerce-invalide litecommerce-invalid-required-field");
+          validated = false;
         }
-      },
 
-      update_checkout: function(event, args){}
-      update_checkout_action: function(args){}
-    };
+        if(validated){
+          $parent
+          .removeClass(
+            "litecommerce-invalid litecommerce-invalid-required-field litecommerce-invalid-email litecommerce-invalid-phone"
+          ).addClass("litecommerce-validated");
+        }
+      }
+    },
 
+    update_checkout: function(event, args){},
+    update_checkout_action: function(args){}
 });
