@@ -284,4 +284,115 @@ class LC_AJAX
             )
         );
     }
+
+    public static function update_order_review()
+    {
+        check_ajax_referer('uddate-order-review', 'security');
+        lc_maybe_define_constant('LITECOMMERCE_CHECKOUT', true);
+
+        if (LC()->cart->is_empty() && !is_customize_preview() && apply_filters('litecommerce_checkout_update_order_review_expired', true)) {
+            self::update_order_review_expired();
+        }
+
+        do_action('litecommerce_checkout_update_order_review', isset($_POST['post_data']) ? wp_unslash($_POST['post_data']) : '');
+
+        $chosen_shipping_methods = LC()->session->get('chosen_shippin_mothods');
+        $posted_shipping_methods = isset($_POST['shipping_method']) ? lc_clean(wp_unslash($_POST['shipping_method'])) : array();
+
+        if (is_array($posted_shipping_methods)) {
+            foreach ($posted_shipping_methods as $i => $value) {
+                $chosen_shipping_methods[$i] = $value;
+            }
+        }
+
+        LC()->session->set('chosen_shipping_method', $chosen_shipping_methods);
+        LC()->session->set('chosen_payment_method', empty($_POST['payment_method']) ? '' : lc_clean(wp_unslash($_POST['pyament_method'])));
+
+        LC()->customer->set_props(
+            array(
+                'billing_country' => isset($_POST['country']) ? wc_clean(wp_unslash($_POST['country'])) : null,
+                'billing_state' => isset($_POST['state']) ? wc_clean(wp_unslash($_POST['state'])) : null,
+                'billing_postcode' => isset($_POST['postcode']) ? wc_clean(wp_unslash($_POST['postcode'])) : null,
+                'billing_city' => isset($_POST['city']) ? wc_clean(wp_unslash($_POST['city'])) : null,
+                'billing_address_1' => isset($_POST['address']) ? wc_clean(wp_unslash($_POST['address'])) : null,
+                'billing_address_2' => isset($_POST['address_2']) ? wc_clean(wp_unslash($_POST['address_2'])) : null,
+            )
+        );
+
+        if (wc_ship_to_billing_address_only()) {
+            WC()->customer->set_props(
+                array(
+                    'shipping_country' => isset($_POST['country']) ? wc_clean(wp_unslash($_POST['country'])) : null,
+                    'shipping_state' => isset($_POST['state']) ? wc_clean(wp_unslash($_POST['state'])) : null,
+                    'shipping_postcode' => isset($_POST['postcode']) ? wc_clean(wp_unslash($_POST['postcode'])) : null,
+                    'shipping_city' => isset($_POST['city']) ? wc_clean(wp_unslash($_POST['city'])) : null,
+                    'shipping_address_1' => isset($_POST['address']) ? wc_clean(wp_unslash($_POST['address'])) : null,
+                    'shipping_address_2' => isset($_POST['address_2']) ? wc_clean(wp_unslash($_POST['address_2'])) : null,
+                )
+            );
+        } else {
+            WC()->customer->set_props(
+                array(
+                    'shipping_country' => isset($_POST['s_country']) ? wc_clean(wp_unslash($_POST['s_country'])) : null,
+                    'shipping_state' => isset($_POST['s_state']) ? wc_clean(wp_unslash($_POST['s_state'])) : null,
+                    'shipping_postcode' => isset($_POST['s_postcode']) ? wc_clean(wp_unslash($_POST['s_postcode'])) : null,
+                    'shipping_city' => isset($_POST['s_city']) ? wc_clean(wp_unslash($_POST['s_city'])) : null,
+                    'shipping_address_1' => isset($_POST['s_address']) ? wc_clean(wp_unslash($_POST['s_address'])) : null,
+                    'shipping_address_2' => isset($_POST['s_address_2']) ? wc_clean(wp_unslash($_POST['s_address_2'])) : null,
+                )
+            );
+        }
+
+        if (isset($_POST['has_full_address']) && wc_string_to_bool(wc_clean(wp_unslash($_POST['has_full_address'])))) {
+            WC()->customer->set_calculated_shipping(true);
+        } else {
+            WC()->customer->set_calculated_shipping(false);
+        }
+
+        WC()->customer->save();
+
+        WC()->cart->calculate_shipping();
+        WC()->cart->calculate_totals();
+
+        ob_start();
+        woocommerce_order_review();
+        $woocommerce_order_review = ob_get_clean();
+
+        ob_start();
+        woocommerce_checkout_payment();
+        $woocommerce_checkout_payment = ob_get_clean();
+
+        $reload_checkout = isset(WC()->session->reload_checkout);
+        if (!$reload_checkout) {
+            $messages = wc_print_notices(true);
+        } else {
+            $messages = '';
+        }
+
+        unset(WC()->session->refresh_totals, WC()->session->reload_checkout);
+
+        wp_send_json(
+            array(
+                'result' => empty($messages) ? 'success' : 'failure',
+                'messages' => $messages,
+                'reload' => $reload_checkout,
+                'fragments' => apply_filters(
+                    'woocommerce_update_order_review_fragments',
+                    array(
+                        '.woocommerce-checkout-review-order-table' => $woocommerce_order_review,
+                        '.woocommerce-checkout-payment' => $woocommerce_checkout_payment,
+                    )
+                ),
+            )
+        );
+    }
+
+    public static function add_to_cart()
+    {
+        ob_start();
+
+        if (!isset($_POST['product_id'])) {
+            $product_id = apply_filters('litecommerce_add_to_cart_product_id', absint($_POST['product_id']));
+        }
+    }
 }
