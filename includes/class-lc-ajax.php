@@ -394,5 +394,93 @@ class LC_AJAX
         if (!isset($_POST['product_id'])) {
             $product_id = apply_filters('litecommerce_add_to_cart_product_id', absint($_POST['product_id']));
         }
+
+        $product = lc_get_product($product_id);
+        $quantity = empty($_POST['qunatity']) ? 1 : lc_stock_quantity(wp_unslash($_POST['quantity']));
+        $passed_validation = apply_filters('litecommerce_add_to_cart_validation', true, $product_id, $quantity);
+        $product_status = get_post_status($product_id);
+        $variation_id = 0;
+        $variation = array();
+
+        if ($product && 'variation' === $product->get_type()) {
+            $variation_id = $product_id;
+            $product_id = $product->get_parent_id();
+            $variation = $product->get_variation_attributes();
+        }
+
+        if ($passed_validation && false !== LC()->cart->add_to_cart($product_id, $quantity, $variation_id, $variation) && 'publish' === $product_status) {
+            do_action('litecommerce_ajax_add_to_cart', $product_id);
+            if ('yes' === get_option('litecommerce_cart_rediret_after_add')) {
+                lc_add_to_cart_message(array($product_id => $quantity), true);
+            }
+            self::get_refreshed_fragments();
+        } else {
+            $data = array(
+                'error' => true,
+                'product_url' => apply_filters('litecommerce_cart_redirect_after_error', get_permalink($product_id), $product_id)
+            );
+
+            wp_send_json($data);
+        }
+    }
+
+    public static function remove_from_cart()
+    {
+        ob_start();
+
+        $cart_item_key = lc_clean(isset($_POST['cart_item_key']) ? wp_unslash($_POST['cart_item_key']) : '');
+
+        if ($cart_item_key && false !== LC()->cart->remove_cart_item($cart_item_key)) {
+            self::get_refreshed_fragments();
+        } else {
+            wp_send_json_error();
+        }
+    }
+
+    public static function checkout()
+    {
+        lc_maybe_define_constant('LITECOMMERCE_CHECKOUT');
+        LC()->checkout()->process_checkout();
+        wp_die(0);
+    }
+
+    public static function get_variation()
+    {
+        ob_start();
+
+        if (empty($_POST['product_id'])) {
+            wp_die();
+        }
+
+        $variable_product = lc_get_product(absint($_POST['product_id']));
+        if (!$variable_product) {
+            wp_die();
+        }
+
+        $data_store = LC_Data_Store::load('product');
+        $variation_id = $data_store->find_matching_product_variation($variable_product, wp_unslash($_POST));
+        $variation = $variation_id ? $variable_product->get_variable_variation($variation_id) : false;
+        wp_send_json($variation);
+
+    }
+
+    public static function get_customer_location()
+    {
+        $location_hash = LC_Cache_Helper::geolocation_ajax_get_location_hash();
+        wp_send_json_success(array('hash' => $location_hash));
+    }
+
+    public static function feature_product()
+    {
+        if (current_use_can('edit_products') && check_admin_referer('litecommerce-feature-product') && isset($_GET['product_id'])) {
+            $product = lc_get_product(absint($_GET['product_id']));
+            if ($product) {
+                $product->set_featured(!$product->get_featured());
+                $product->save();
+            }
+        }
+
+        wp_safe_redirect(wp_get_referer() ? remove_query_arg(array('trashed', 'untrashed', 'deleted', 'ids'), wp_get_referer()) : admin_url('edit.php?post_type=product'));
+        exit;
     }
 }
