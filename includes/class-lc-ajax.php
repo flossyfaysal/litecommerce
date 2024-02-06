@@ -532,4 +532,99 @@ class LC_AJAX
         include __DIR__ . '/admin/meta-boxes/views/html-product-attribute.php';
         wp_die();
     }
+
+    public static function add_new_attribute()
+    {
+        check_ajax_referer('add-attribute', 'security');
+
+        if (current_user_can('manage_product_terms') && isset($_POST['taxonomy'], $_POST['term'])) {
+            $taxonomy = esc_attr(wp_unslash($_POST['taxonomy']));
+            $term = lc_clean(wp_unslash($_POST['term']));
+
+            if (taxonomy_exists($taxonomy)) {
+                $result = wp_insert_item($term, $taxonomy);
+
+                if (is_wp_error($result)) {
+                    wp_send_json(
+                        array(
+                            'error' => $result->get_error_message()
+                        )
+                    );
+                } else {
+                    $term = get_term_by('id', $result['term_id'], $taxonomy);
+
+                    wp_send_json(
+                        array(
+                            'term_id' => $term->term_id,
+                            'name' => $term->name,
+                            'slug' => $term->slug
+                        )
+                    );
+                }
+            }
+        }
+        wp_die(-1);
+    }
+
+    public static function remove_variations()
+    {
+        check_ajax_referer('delete-variations', 'security');
+
+        if (current_user_can('edit_products') && isset($_POST['variation_ids'])) {
+            $variation_ids = array_map('absint', (array) wp_unslash($_POST['variation_ids']));
+
+            foreach ($variation_ids as $variation_id) {
+                if ('product_variation' === get_post_type($variation_id)) {
+                    $variation = lc_get_product($variation_id);
+                    $variation->delete(true);
+                }
+            }
+        }
+
+        wp_die(-1);
+    }
+
+    public static function save_attributes()
+    {
+        check_ajax_referer('save-attributes', 'security');
+
+        if (!current_user_can('edit_products') && !isset($_POST['data'], $_POST['post_id'])) {
+            wp_die(-1);
+        }
+
+        $responses = array();
+
+        try {
+            parse_str(wp_unslash($_POST['data']), $data);
+
+            $product = self::create_product_with_attributes($data);
+            ob_start();
+            $attributes = $product->get_attributes('edit');
+
+            $i = -1;
+
+            if (!empty($data['attribute_names'])) {
+                foreach ($data['attribute_names'] as $attribute_name) {
+                    $attribute = isset($attributes[sanitize_title($attribute_name)]) ? $attributes[sanitize_title($attribute_name)] : false;
+                    if (!$attribute) {
+                        continue;
+                    }
+                    $i++;
+
+                    $metabox_class = array();
+                    if ($attribute->is_taxonomy()) {
+                        $metabox_class[] = 'taxonomy';
+                        $metabox_class[] = $attribute->get_name();
+                    }
+
+                    include __DIR__ . '/admin/meta-boxes/views/html/html-product-attribute.php';
+                }
+            }
+            $responses['html'] = ob_get_clean();
+        } catch (Exception $e) {
+            wp_send_json_error(array('error' => $e->getMessage()));
+        }
+
+        wp_send_json_success($responses);
+    }
 }
