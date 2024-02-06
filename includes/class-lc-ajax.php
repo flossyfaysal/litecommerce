@@ -483,4 +483,53 @@ class LC_AJAX
         wp_safe_redirect(wp_get_referer() ? remove_query_arg(array('trashed', 'untrashed', 'deleted', 'ids'), wp_get_referer()) : admin_url('edit.php?post_type=product'));
         exit;
     }
+
+    public static function get_order_details()
+    {
+        check_admin_referer('litecommerce-preview-order', 'security');
+
+        if (!current_user_can('edit_shop_orders') || !isset($_GET['order_id'])) {
+            wp_die(-1);
+        }
+
+        $order = lc_get_order(absint($_GET['order_id']));
+
+        if ($order) {
+            include __DIR__ . 'admin/list-tables/class-lc-admin-list-table-orders.php';
+
+            wp_send_json_success(LC_Admin_List_Table_Orders::order_preview_get_order_details($order));
+        }
+
+        wp_die();
+    }
+
+    public static function add_attribute()
+    {
+        check_ajax_referer('add-attribute', 'security');
+
+        if (!current_user_can('edit_products') || !isset($_POST['taxonomy'], $_POST['i'])) {
+            wp_die(-1);
+        }
+
+        $product_type = isset($_POST['product_type']) ? sanitize_text_field(wp_unslash($_POST['product_type'])) : 'simple';
+
+        $i = absint($_POST['i']);
+        $metabox_class = array();
+        $attribute = new LC_Product_Attribute();
+
+        $attribute->set_id(lc_attribute_taxonomy_id_by_name(sanitize_text_field($_POST['taxonomy'])));
+
+        $attribute->set_name(sanitize_text_field(wp_unslash($_POST['taxonomy'])));
+
+        $attribute->set_visible(1);
+        $attribute->set_variation('variation' === $product_type ? 1 : 0);
+
+        if ($attribute->is_taxonomy()) {
+            $metabox_class[] = 'taxonomy';
+            $metabox_class[] = $attribute->get_name();
+        }
+
+        include __DIR__ . '/admin/meta-boxes/views/html-product-attribute.php';
+        wp_die();
+    }
 }
