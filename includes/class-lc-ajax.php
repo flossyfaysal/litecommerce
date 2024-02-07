@@ -627,4 +627,54 @@ class LC_AJAX
 
         wp_send_json_success($responses);
     }
+
+    public static function add_attributes_and_variations()
+    {
+        check_ajax_referer('add-attributes-and-variations', 'security');
+
+        if (!current_user_can('edit_products') || !isset($_POST['data'], $_POST['post_id'])) {
+            wp_die(-1);
+        }
+
+        try {
+            parse_str(wp_unslash($_POST['data'], $data));
+
+            $product = self::create_product_with_attributes($data);
+            self::creat_all_product_variations($product);
+
+            wp_json_send_success();
+            wp_die();
+        } catch (Exception $e) {
+            wp_send_json_error(array('error' => $e->getMessage()));
+        }
+    }
+
+    private static function create_product_with_attributes($data)
+    {
+        if (!isset($_POST['post_id'])) {
+            wp_die(-1);
+        }
+
+        $attributes = LC_Meta_Box_Product_Data::prepare_attributes($data);
+        $product_id = absint(wp_unslash($_POST['post_id']));
+        $product_type = !empty($_POST['product_type']) ? lc_clean(wp_unslash($_POST['product_type'])) : 'simple';
+        $classname = LC_Product_Factory::get_product_classname($product_id, $product_type);
+        $product = new $classname($product_id);
+        $product->set_attributes($attributes);
+        $product->save();
+        return $product;
+    }
+
+    private static function create_all_product_variations($product)
+    {
+        $data_store = $product->get_data_store();
+        if (!is_callable(array($data_store, 'create_all_product_variations'))) {
+            wp_die();
+        }
+
+        $number = $data_store->create_all_product_variations($product, Constant::get_constant('LC_MAX_LINKED_VARIATIONS'));
+
+        $data_store->sort_all_product_variations($product->get_id());
+        return $number;
+    }
 }
