@@ -702,4 +702,31 @@ class LC_AJAX
         include __DIR__ . '/admin/meta-boxes/views/html-variation-admin.php';
         wp_die();
     }
+
+    public static function link_all_variations()
+    {
+        check_ajax_referer('link-variations', 'security');
+
+        if (!current_user_can('edit_products')) {
+            wp_die(-1);
+        }
+
+        lc_maybe_define_constant('LC_MAX_LINKED_VARIATIONS', 50);
+        lc_set_time_limit(0);
+
+        $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+
+        if (!$post_id) {
+            wp_die();
+        }
+
+        $product = lc_get_product($post_id);
+        $number_created = self::create_all_product_variations($product);
+
+        echo esc_html($number_created);
+
+        wp_die();
+    }
+
+
 }
