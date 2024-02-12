@@ -845,4 +845,29 @@ class LC_AJAX
 
         wp_send_json($customer_data);
     }
+
+    public static function add_order_item()
+    {
+        check_ajax_referer('order-item', 'security');
+
+        if (!current_user_can('edit_shop_orders')) {
+            wp_die(-1);
+        }
+
+        if (!isset($_POST['order_id'])) {
+            throw new Exception(__('Invalid order', 'litecommerce'));
+        }
+
+        $order_id = absint(wp_unslash($_POST['order_id']));
+
+        $items = (!empty($_POST['items'])) ? wp_unslash($_POST['items']) : '';
+        $items_to_add = isset($_POST['data']) ? array_filter(wp_unslash((array) $_POST['data'])) : array();
+
+        try {
+            $response = self::maybe_add_order_item($order_id, $items, $items_to_add);
+            wp_send_json_success($response);
+        } catch (Exception $e) {
+            wp_send_json_error(array('error' => $e->getMessage()));
+        }
+    }
 }
