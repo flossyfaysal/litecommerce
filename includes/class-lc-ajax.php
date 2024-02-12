@@ -870,4 +870,73 @@ class LC_AJAX
             wp_send_json_error(array('error' => $e->getMessage()));
         }
     }
+
+    private static function maybe_add_order_item($order_id, $items, $items_to_add)
+    {
+        try {
+            $order = lc_get_order($order_id);
+            if (!$order) {
+                throw new Exception(__('Invalid Order', 'litecommerce'));
+            }
+
+            if (!empty($items)) {
+                $save_items = array();
+                parse_str($items, $save_items);
+                lc_save_order_items($order->get_id(), $save_items);
+            }
+
+            $order_notes = array();
+            $added_items = array();
+
+            foreach ($items_to_add as $item) {
+                if (!isset($item['id'], $item['qty']) || empty($item['id'])) {
+                    continue;
+                }
+                $product_id = absint($item['id']);
+                $qty = lc_stock_amount($item['qty']);
+                $product = lc_get_product($product_id);
+
+                if (!$product) {
+                    throw new Exception(__('Invalid product ID', 'litecommerce'));
+                }
+                if ('variable' === $product->get_type()) {
+                    throw new Exception(__('%s is a variable product  and cannot be added.', 'litecommerce'), $product->get_name());
+                }
+                $validation_error = new WP_Error();
+                $validation_error = apply_filters('litecommerce_ajax_add_order_item_validation', $validation_error, $product, $order, $qty);
+
+                if ($validation_error->get_error_code()) {
+                    throw new Exception(sprintf(__('Error: %s', 'litecommerce'), $validation_error->get_error_message()));
+                }
+
+                $item_id = $order->add_product($product, $qty, array('order' => $order));
+                $item = apply_filters('litecommerce_ajax_order_item', $order->get_item($item_id), $order, $product);
+                $added_items[$item_id] = $item;
+                $order_notes[$item_id] = $product->get_formatted_name();
+
+                do_action('litecommerce_ajax_add_order_item_meta', $item_id, $item, $order);
+            }
+
+            $order->add_order_note(sprintf(__('Added line items: %s', 'litecommerce'), implode(', ', $order_notes)), false, true);
+
+            do_action('litecommerce_ajax_order_items_added', $added_items, $order);
+
+            $data = get_post_meta($order_id);
+
+            ob_start();
+            include __DIR__ . '/admin/meta-boxes/views/html-order-items.php';
+            $items_html = ob_get_clean();
+
+            ob_start();
+            include __DIR__ . 'admin/meta-boxes/views/html-order-notes.php';
+            $notes_html = ob_get_clean();
+
+            return array(
+                'html' => $items_html,
+                'notes_html' => $notes_html
+            );
+        } catch (Exception $e) {
+            throw $e;
+        }
+    }
 }
