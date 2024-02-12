@@ -728,5 +728,121 @@ class LC_AJAX
         wp_die();
     }
 
+    public static function revoke_access_to_download()
+    {
+        check_ajax_referer('revoke-access', 'security');
 
+        if (!current_user_can('edit_shop_orders') || !isset($_POST['download_id'], $_POST['product_id'], $_POST['order_id'], $_POST['permission_id'])) {
+            wp_die(-1);
+        }
+
+        $download_id = lc_clean(wp_unslash($_POST['download_id']));
+        $product_id = intval($_POST['product_id']);
+        $order_id = intval($_POST['order_id']);
+        $permission_id = absint($_POST['permission_id']);
+        $data_store = LC_Data_Store::load('customer-download');
+        $data_store->delete_by_id($permission_id);
+
+        do_action('litecommerce_ajax_revoke_access_to_product_download', $download_id, $product_id, $order_id, $permission_id);
+
+        wp_die();
+    }
+
+    public static function grant_access_to_download()
+    {
+        check_ajax_referer('grant-access', 'security');
+
+        if (!current_user_can('edit_shop_orders') || !isset($_POST['loop'], $_POST['order_id'], $_POST['products_ids'])) {
+            wp_die(-1);
+        }
+
+        global $wp;
+
+        $wpdb->hide_errors();
+
+        $order_id = intval($_POST['order_id']);
+        $product_ids = array_filter(array_map('absint', (array) wp_unslash($_POST['product_ids'])));
+        $loop = intval($_POST['loop']);
+        $file_counter = 0;
+        $order = wc_get_order($order_id);
+
+        if (!$order->get_billing_email()) {
+            wp_die();
+        }
+
+        $data = array();
+        $items = $order->get_items();
+
+        foreach ($items as $item) {
+            $product = $item->get_product();
+
+            if ($product && $product->exists() && in_array($product->get_id(), $product_ids, true) && $product->is_downloadable()) {
+                $data[$product->get_id()] = array(
+                    'files' => $product->get_downloads(),
+                    'quantity' => $item->get_quantity(),
+                    'order_item' => $item,
+                );
+            }
+
+            foreach ($product_ids as $product_id) {
+                $product = wc_get_products($product_id);
+
+                if (isset($data[$product->get_id()])) {
+                    $download_data = $data[$product->get_id()];
+                } else {
+                    $download_data = array(
+                        'files' => $product->get_id(),
+                        'quantity' => 1,
+                        'order_item' => null
+                    );
+                }
+
+                if (!empty($download_data['files'])) {
+                    foreach ($download_data['files'] as $download_id => $file) {
+                        $inserted_id = wc_downloadable_file_permission($download_id, $product->get_id(), $order, $download_data['quantity'], $download_data['order_item']);
+
+                        if ($inserted_id) {
+                            $download = new LC_Customer_Download($inserted_id);
+                            $loop++;
+                            $file_counter++;
+
+                            if ($file->get_name()) {
+                                $file_count = $file->get_name();
+                            } else {
+                                $file_count = sprintf(__('File %d', 'litecommerce'), $file_counter);
+                            }
+                            include __DIR__ . '/admin/meta-boxes/views/html-order-download-permission.php';
+                        }
+                    }
+                }
+            }
+        }
+        wp_die();
+    }
+
+    public static function get_customer_details()
+    {
+        check_ajax_referer('get-customer-details', 'security');
+
+        if (!current_user_can('edit_shop_orders') || !isset($_POST['user_id'])) {
+            wp_die(-1);
+        }
+
+        $user_id = absint($_POST['user_id']);
+        $customer = new LC_Customer($user_id);
+
+        if (has_filter('litecommerce_found_customer_details')) {
+            lc_deprecated_function('The litecommerce_found_customer_details filter', '3.0', 'litecommerce_ajax_get_customer_details');
+        }
+
+        $data = $customer->get_data();
+        $data['date_created'] = $data['date_created'] ? $data['date_created']->getTimestamp() : null;
+        $data['date_modified'] = $data['date_modified'] ? $data['date_modified']->getTimestamp() : null;
+
+        unset($data['meta_data']);
+
+        $customer_data = apply_filters('litecommerce_ajax_get_customer_details', $data, $custome, $user_id);
+
+        wp_send_json($customer_data);
+    }
 }
