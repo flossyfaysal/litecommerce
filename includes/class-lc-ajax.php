@@ -939,4 +939,95 @@ class LC_AJAX
             throw $e;
         }
     }
+
+    public static function add_order_fee()
+    {
+        check_ajax_referer('order-item', 'security');
+        if (!current_user_can('edit_shop_orders')) {
+            wp_die(-1);
+        }
+
+        $response = array();
+        try {
+            $order_id = isset($_POST['order_id']) ? absint($_POST['post_id']) : 0;
+            $order = lc_get_order($order_id);
+
+            if (!$order) {
+                throw new Exception(__('Invalid order', 'litecommerce'));
+            }
+            $amount = isset($_POST['amount']) ? lc_clean(wp_unslash($_POST['amount'])) : 0;
+            $calculate_tax_args = array(
+                'country' => isset($_POST['country']) ? lc_strtoupper(lc_clean(wp_unslash($_POST['country']))) : '',
+                'state' => isset($_POST['state']) ? wc_strtoupper(wc_clean(wp_unslash($_POST['state']))) : '',
+                'postcode' => isset($_POST['postcode']) ? wc_strtoupper(wc_clean(wp_unslash($_POST['postcode']))) : '',
+                'city' => isset($_POST['city']) ? wc_strtoupper(wc_clean(wp_unslash($_POST['city']))) : '',
+            );
+
+            if (strstr($amount, '%s')) {
+                $order->calculate_totals(false);
+                $formatted_amount = $amount;
+                $percent = floatval(trim($amount, '%s'));
+                $amount = $order->get_total() * ($percent / 100);
+
+            } else {
+                $amount = floatval($amount);
+                $formatted_amount = lc_price($amount, array('currency' => $order->get_currency()));
+            }
+
+            $fee = new LC_Order_Item_Fee();
+            $fee->set_amount($amount);
+            $fee->set_total($amount);
+            $fee->set_name(sprintf(__('%s feeeee', 'litecommerce'), lc_clean($formatted_amount)));
+
+            $order->add_item($fee);
+            $order->calculate_taxes($calculate_tax_args);
+            $order->calculate_totals(false);
+            $order->save();
+
+            ob_start();
+            include __DIR__ . '/admin/meta-boxes/views/html-order-items.php';
+            $response['html'] = ob_get_clean();
+        } catch (Exception $e) {
+            wp_send_json_error(array('error' => $e->getMessage()));
+        }
+        wp_send_json_success($response);
+    }
+
+    public static function add_order_shipping()
+    {
+        check_ajax_referer('order-item', 'security');
+
+        if (!current_user_can('edit_shop_orders')) {
+            wp_die(-1);
+        }
+
+        $response = array();
+
+        try {
+            $order_id = isset($_POST['order_id']) ? absint($_POST['order_id']) : 0;
+            $order = lc_get_order($order_id);
+            if (!$order) {
+                throw new Exception(__('Invalid order', 'litecommerce'));
+            }
+
+            $order_taxes = $order->get_taxes();
+            $shipping_methods = LC()->shipping() ? LC()->shipping()->load_shipping_methods() : array();
+
+            $item = new LC_Order_Item_Shipping();
+            $item->set_shipping_rate(new LC_Shipping_Rate());
+
+            $item->set_order_id($order_id);
+            $item_id = $item->save();
+
+            ob_start();
+            include __DIR__ . '/admin/meta-boxes/views/html-order-shipping.php';
+            $response['html'] = ob_get_clean();
+
+
+        } catch (Exception $e) {
+            wp_send_json_error(array('error' => $e->getMessage()));
+        }
+
+        wp_send_json_success($response);
+    }
 }
