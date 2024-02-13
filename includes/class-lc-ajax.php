@@ -1217,4 +1217,37 @@ class LC_AJAX
         wp_send_json_success($response);
     }
 
+    public static function remove_order_tax()
+    {
+        check_ajax_referer('order-item', 'security');
+
+        if (!current_user_can('edit_shop_orders') || !isset($_POST['order_id'], $_POST['rate_id'])) {
+            wp_die(-1);
+        }
+
+        $response = array();
+
+
+        try {
+            $order_id = absint($_POST['order_id']);
+            $rate_id = absint($_POST['rate_id']);
+
+            $order = wc_get_order($order_id);
+            if (!$order->is_editable()) {
+                throw new Exception(__('Order not editable', 'woocommerce'));
+            }
+
+            wc_delete_order_item($rate_id);
+
+            $order = wc_get_order($order_id);
+            $order->calculate_totals(false);
+
+            ob_start();
+            include __DIR__ . '/admin/meta-boxes/views/html-order-items.php';
+            $response['html'] = ob_get_clean();
+        } catch (Exception $e) {
+            wp_send_json_error(array('error' => $e->getMessage()));
+        }
+        wp_send_json_success($response);
+    }
 }
