@@ -1250,4 +1250,44 @@ class LC_AJAX
         }
         wp_send_json_success($response);
     }
+
+    public static function calc_line_taxes()
+    {
+        wc_get_container()->get(TaxesController::class)->calc_line_taxes_via_ajax();
+    }
+
+    public static function save_order_items()
+    {
+        check_ajax_referer('order-item', 'security');
+        if (!current_user_can('edit_shop_orders')) {
+            wp_die(-1);
+        }
+
+        if (isset($_POST['order_id'], $_POST['items'])) {
+            $order_id = absint($_POST['order_id']);
+            $items = array();
+            parse_str(wp_unslash($_POST['items']), $items);
+
+            wc_save_order_items($order_id, $items);
+
+            $order = wc_get_order($order_id);
+
+            ob_start();
+            include __DIR__ . '/admin/meta-boxes/views/html-order-items.php';
+            $items_html = ob_get_clean();
+
+            ob_start();
+            $notes = wc_get_order_notes(array('order_id' => $order_id));
+            include __DIR__ . '/admin/meta-boxes/views/html-order-notes.php';
+            $notes_html = ob_get_clean();
+
+            wp_send_json_success(
+                array(
+                    'html' => $items_html,
+                    'notes_html' => $notes_html,
+                )
+            );
+        }
+        wp_die();
+    }
 }
