@@ -1128,5 +1128,93 @@ class LC_AJAX
         wp_send_json_success($response);
     }
 
+    public static function remove_order_item()
+    {
+        check_ajax_referer('order-item', 'security');
+
+        if (!current_user_can('edit_shop_orders') || !isset($_POST['order_id'], $_POST['order_item_ids'])) {
+            wp_die(-1);
+        }
+
+        $response = array();
+
+        try {
+            $order_id = absint($_POST['order_id']);
+            $order = wc_get_order($order_id);
+
+            if (!$order) {
+                throw new Exception(__('Invalid order', 'woocommerce'));
+            }
+
+            if (!isset($_POST['order_item_ids'])) {
+                throw new Exception(__('Invalid items', 'woocommerce'));
+            }
+
+            $order_item_ids = wp_unslash($_POST['order_item_ids']);
+            $items = (!empty($_POST['items'])) ? wp_unslash($_POST['items']) : '';
+
+            $calculate_tax_args = array(
+                'country' => isset($_POST['country']) ? wc_strtoupper(wc_clean(wp_unslash($_POST['country']))) : '',
+                'state' => isset($_POST['state']) ? wc_strtoupper(wc_clean(wp_unslash($_POST['state']))) : '',
+                'postcode' => isset($_POST['postcode']) ? wc_strtoupper(wc_clean(wp_unslash($_POST['postcode']))) : '',
+                'city' => isset($_POST['city']) ? wc_strtoupper(wc_clean(wp_unslash($_POST['city']))) : '',
+            );
+
+            if (is_numeric($order_item_ids)) {
+                $order_item_ids = array($order_item_ids);
+            }
+
+            if (!empty($items)) {
+                $save_items = array();
+                parse_str($items, $save_items);
+                wc_save_order_items($order->get_id(), $save_items);
+            }
+
+            if (!empty($order_item_ids)) {
+                foreach ($order_item_ids as $item_id) {
+                    $item_id = absint($item_id);
+                    $item = $order->get_item($item_id);
+                    if (!$item) {
+                        continue;
+                    }
+                    if ($item->is_type('line_item')) {
+                        $changed_stock = wc_maybe_adjust_line_item_product_stock($item, 0);
+                        if ($changed_stock) {
+                            $order->add_order_note(sprintf(__('Deleted %1$s and adjusted stock (%2$s)', 'woocommerce'), $item->get_name(), $changed_stock['from'] . '&rarr;' . $changed_stock['to']), false, true);
+                        } else {
+                            $order->add_order_note(sprintf(__('Deleted %s', 'woocommerce'), $item->get_name()), false, true);
+                        }
+                    }
+                    wc_delete_order_item($item_id);
+                }
+            }
+
+            $order = wc_get_order($order_id);
+            $order->calculate_taxes($calculate_tax_args);
+            $order->calculate_totals(false);
+
+            do_action('litecommerce_ajax_order_items_removed', $item_id ?? 0, $item ?? false, $changed_stock ?? false, $order);
+
+            ob_start();
+            include __DIR__ . '/admin/meta-boxes/views/html-order-items.php';
+            $items_html = ob_get_clean();
+
+            ob_start();
+            $notes = wc_get_order_notes(array('order_id' => $order_id));
+            include __DIR__ . '/admin/meta-boxes/views/html-order-notes.php';
+            $notes_html = ob_get_clean();
+
+            wp_send_json_success(
+                array(
+                    'html' => $items_html,
+                    'notes_html' => $notes_html,
+                )
+            );
+        } catch (Exception $e) {
+            wp_send_json_error(array('error' => $e->getMessage()));
+        }
+
+        wp_send_json_success($response);
+    }
 
 }
