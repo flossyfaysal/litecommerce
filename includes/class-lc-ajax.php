@@ -1030,4 +1030,44 @@ class LC_AJAX
 
         wp_send_json_success($response);
     }
+
+    public static function add_order_tax()
+    {
+        check_ajax_referer('order-item', 'security');
+
+        if (!current_user_can('edit_shop_orders')) {
+            wp_die(-1);
+        }
+
+        $response = array();
+
+        try {
+            $order_id = isset($_POST['order_id']) ? absint($_POST['order_id']) : 0;
+            $order = wc_get_order($order_id);
+
+            if (!$order) {
+                throw new Exception(__('Invalid order', 'woocommerce'));
+            }
+
+            $rate_id = isset($_POST['rate_id']) ? absint($_POST['rate_id']) : '';
+
+            if (!$rate_id) {
+                throw new Exception(__('Invalid rate', 'woocommerce'));
+            }
+
+            $data = get_post_meta($order_id);
+
+            $item = new LC_Order_Item_Tax();
+            $item->set_rate($rate_id);
+            $item->set_order_id($order_id);
+            $item->save();
+
+            ob_start();
+            include __DIR__ . '/admin/meta-boxes/views/html-order-items.php';
+            $response['html'] = ob_get_clean();
+        } catch (Exception $e) {
+            wp_send_json_error(array('error' => $e->getMessage()));
+        }
+        wp_send_json_success($response);
+    }
 }
