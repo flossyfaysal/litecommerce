@@ -1070,4 +1070,63 @@ class LC_AJAX
         }
         wp_send_json_success($response);
     }
+
+    public static function add_coupon_discount()
+    {
+        lc_get_container()->get(CouponsController::class)->add_coupon_discount_via_ajax();
+    }
+
+    public static function remove_order_coupon()
+    {
+        check_ajax_referer('order-item', 'security');
+
+        if (!current_user_can('edit_shop_orders')) {
+            wp_die(-1);
+        }
+
+        $response = array();
+
+        try {
+            $order_id = isset($_POST['order_id']) ? absint($_POST['order_id']) : 0;
+            $order = wc_get_order($order_id);
+            $calculate_tax_args = array(
+                'country' => isset($_POST['country']) ? wc_strtoupper(wc_clean(wp_unslash($_POST['country']))) : '',
+                'state' => isset($_POST['state']) ? wc_strtoupper(wc_clean(wp_unslash($_POST['state']))) : '',
+                'postcode' => isset($_POST['postcode']) ? wc_strtoupper(wc_clean(wp_unslash($_POST['postcode']))) : '',
+                'city' => isset($_POST['city']) ? wc_strtoupper(wc_clean(wp_unslash($_POST['city']))) : '',
+            );
+
+            if (!$order) {
+                throw new Exception(__('Invalid order', 'woocommerce'));
+            }
+
+            $coupon = ArrayUtil::get_value_or_default($_POST, 'coupon');
+            if (StringUtil::is_null_or_whitespace($coupon)) {
+                throw new Exception(__('Invalid coupon', 'woocommerce'));
+            }
+
+            $code = wc_format_coupon_code(wp_unslash($coupon));
+            if ($order->remove_coupon($code)) {
+                // translators: %s coupon code.
+                $order->add_order_note(esc_html(sprintf(__('Coupon removed: "%s".', 'woocommerce'), $code)), 0, true);
+            }
+            $order->calculate_taxes($calculate_tax_args);
+            $order->calculate_totals(false);
+
+            ob_start();
+            include __DIR__ . '/admin/meta-boxes/views/html-order-items.php';
+            $response['html'] = ob_get_clean();
+
+            ob_start();
+            $notes = wc_get_order_notes(array('order_id' => $order_id));
+            include __DIR__ . '/admin/meta-boxes/views/html-order-notes.php';
+            $response['notes_html'] = ob_get_clean();
+
+        } catch (Exception $e) {
+            wp_send_json_error(array('error' => $e->getMessage()));
+        }
+        wp_send_json_success($response);
+    }
+
+
 }
