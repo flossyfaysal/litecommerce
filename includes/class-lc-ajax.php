@@ -1290,4 +1290,152 @@ class LC_AJAX
         }
         wp_die();
     }
+
+    public static function load_order_items()
+    {
+        check_ajax_referer('order-item', 'security');
+
+        if (!current_user_can('edit_shop_orders') || !isset($_POST['order_id'])) {
+            wp_die(-1);
+        }
+
+        // Return HTML items.
+        $order_id = absint($_POST['order_id']);
+        $order = wc_get_order($order_id);
+        include __DIR__ . '/admin/meta-boxes/views/html-order-items.php';
+        wp_die();
+    }
+
+    public static function add_order_note()
+    {
+        check_ajax_referer('add-order-note', 'security');
+
+        if (!current_user_can('edit_shop_orders') || !isset($_POST['post_id'], $_POST['note'], $_POST['note_type'])) {
+            wp_die(-1);
+        }
+
+        $post_id = absint($_POST['post_id']);
+        $note = wp_kses_post(trim(wp_unslash($_POST['note'])));
+        $note_type = wc_clean(wp_unslash($_POST['note_type']));
+
+        $is_customer_note = ('customer' === $note_type) ? 1 : 0;
+
+        if ($post_id > 0) {
+            $order = lc_get_order($post_id);
+            $comment_id = $order->add_order_note($note, $is_customer_note, true);
+            $note = lc_get_order_note($comment_id);
+
+            $note_classes = array('note');
+            $note_classes[] = $is_customer_note ? 'customer-note' : '';
+            $note_classes = apply_filters('litecommerce_order)_note_class', array_filter($note_classes), $note);
+            ?>
+            <li rel="<?php echo absint($note->id); ?>" class="<?php echo esc_attr(implode(' ', $note_classes)); ?>">
+                <div class="note_content">
+                    <?php echo wp_kses_post(wpautop(wptexturize(make_clickable($note->content)))); ?>
+                </div>
+                <p class="meta">
+                    <abbr class="exact-date" title="<?php echo esc_attr($note->date_created->date('y-m-d h:i:s')); ?>">
+                        <?php printf(esc_html__('added on %1$s at %2$s', 'litecommerce'), esc_html($note->date_created->date_i18n(lc_date_format())), esc_html($note->date_created->date_i18n(lc_time_format()))); ?>
+                    </abbr>
+                    <?php
+                    if ('system' !== $note->added_by):
+                        printf(' ' . esc_html__('by %s', 'litecommerce'), esc_html($note->added_by));
+                    endif;
+                    ?>
+                    <a href="#" class="delete_note" role="button">
+                        <?php esc_html_e('Delete Note', 'litecommerce') ?>
+                    </a>
+                </p>
+            </li>
+            <?php
+        }
+        wp_die();
+    }
+
+    public static function delete_order_note()
+    {
+        check_ajax_referer('delete-order-note', 'security');
+
+        if (!current_user_can('edit_shop_orders') || !isset($_POST['note_id'])) {
+            wp_die(-1);
+        }
+
+        $note_id = (int) $_POST['note_id'];
+
+        if ($note_id > 0) {
+            lc_delete_order_note($note_id);
+        }
+        wp_die();
+    }
+
+    public static function json_search_products($term = '', $include_variations = false)
+    {
+        check_ajax_referer('search-products', 'security');
+
+        if (empty($term) && isset($_GET['term'])) {
+            $term = (string) lc_clean(wp_unslash($_GET['term']));
+        }
+
+        if (empty($term)) {
+            wp_die();
+        }
+
+        if (!empty($_GET['limit'])) {
+            $limit = absint($_GET['limit']);
+        } else {
+            $limit = absint(apply_filters('litecommerce_json_search_limit', 30));
+        }
+
+        $include_ids = !empty($_GET['include']) ? array_map('absint', (array) wp_unslash($_GET['include'])) : array();
+
+        $exclude_ids = !empty($_GET['exclude']) ? array_map('absint', (array) wp_unslash($_GET['exclude'])) : array();
+
+        $exclude_types = array();
+        if (!empty($_GET['exclude_type'])) {
+            $exclude_types = wp_unslash($_GET['exclude_type']);
+            if (!is_array($exclude_types)) {
+                $exclude_types = explode(',', $exclude_types);
+            }
+            foreach ($exclude_types as &$exclude_type) {
+                $exclude_type = strtolower(trim($exclude_type));
+            }
+            $exclude_types = array_intersect(
+                array_merge(array('variation'), array_keys(lc_get_products_types())),
+                $exclude_types
+            );
+        }
+
+        $data_store = LC_Data_Store::load('product');
+        $ids = $data_store->search_products($term, '', (bool) $include_variations, false, $limit, $include_ids, $exclude_ids);
+
+        $products = array();
+        foreach ($ids as $id) {
+            $product_object = lc_get_product($id);
+
+            if (!lc_products_array_filter_readable($product_object)) {
+                continue;
+            }
+
+            $formatted_name = $product_object->get_formatted_name();
+            $managing_stock = $product_object->managing_stock();
+
+            if (in_array($product_object->get_type(), $exclude_types, true)) {
+                continue;
+            }
+
+            if ($managing_stock && !empty($_GET['display_stock'])) {
+                $stock_amount = $product_object->get_stock_quantity();
+                $formatted_name .= ' &ndash; ' . sprintf(__('Stock: %d', 'litecommerce'), lc_format_stock_quantity_for_display($stock_amount, $product_object));
+            }
+
+            $products[$product_object->get_id()] = rawurldecode(wp_strip_all_tags($formatted_name));
+        }
+        wp_send_json(apply_filters('litecommerce_json_search_found_products', $products));
+    }
+
+    public static function json_search_products_and_variations()
+    {
+        self::json_search_products('', true);
+    }
+
 }
