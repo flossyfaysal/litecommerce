@@ -1709,4 +1709,43 @@ class LC_AJAX
         wp_send_json(apply_filters('litecommerce_json_search_found_product_categories', $found_product_categories, $search_text));
     }
 
+    public static function json_search_pages()
+    {
+        ob_start();
+
+        check_ajax_referer('search-pages', 'security');
+
+        if (!current_user_can('manage_woocommerce')) {
+            wp_die(-1);
+        }
+
+        $search_text = isset($_GET['term']) ? wc_clean(wp_unslash($_GET['term'])) : '';
+        $limit = isset($_GET['limit']) ? absint(wp_unslash($_GET['limit'])) : -1;
+        $exclude_ids = !empty($_GET['exclude']) ? array_map('absint', (array) wp_unslash($_GET['exclude'])) : array();
+
+        $args = array(
+            'no_found_rows' => true,
+            'update_post_meta_cache' => false,
+            'update_post_term_cache' => false,
+            'posts_per_page' => $limit,
+            'post_type' => 'page',
+            'post_status' => array('publish', 'private', 'draft'),
+            's' => $search_text,
+            'post__not_in' => $exclude_ids,
+        );
+
+        $search_results_query = new WP_Query($args);
+
+        $pages_results = array();
+        foreach ($search_results_query->get_posts() as $post) {
+            $pages_results[$post->ID] = sprintf(
+                /* translators: 1: page name 2: page ID */
+                __('%1$s (ID: %2$s)', 'woocommerce'),
+                get_the_title($post),
+                $post->ID
+            );
+        }
+        wp_send_json(apply_filters('litecommerce_json_search_found_pages', $pages_results));
+    }
+
 }
