@@ -1668,8 +1668,45 @@ class LC_AJAX
             'name__like' => $search_text,
             'suppress_filter' => true,
         );
+
+        $terms = get_terms(apply_filters('liteccommerce_product_attribute_terms', $args));
+
+        wp_send_json(apply_filters('litecommerce_json_search_found_product_attribute_terms', $terms, $taxonomy));
     }
 
+    public static function json_search_product_attributes()
+    {
+        ob_start();
 
+        check_ajax_referer('search-product-attributes', 'security');
+
+        if (!current_user_can('edit_products')) {
+            wp_die(-1);
+        }
+
+        $limit = isset($_GET['limit']) ? absint(wp_unslash($_GET['limit'])) : 100;
+        $search_text = isset($_GET['term']) ? wc_clean(wp_unslash($_GET['term'])) : '';
+
+        $attributes = lc_get_attribute_taxonomies();
+        $found_product_categories = array();
+
+        foreach ($attributes as $attribute_obj) {
+            if (!$search_text || false !== stripos($attribute_obj->attribute_label, $search_text)) {
+                $found_product_categories[] = array(
+                    'id' => (int) $attribute_obj->attribute_id,
+                    'name' => $attribute_obj->attribute_label,
+                    'slug' => lc_attribute_taxonomy_name($attribute_obj->attribute_name),
+                    'type' => $attribute_obj->attribute_type,
+                    'orderby' => $attribute_obj->attribute_orderby,
+                    'has_archives' => (bool) $attribute_obj->attribute_public
+                );
+            }
+            if (count($found_product_categories) >= $limit) {
+                break;
+            }
+        }
+
+        wp_send_json(apply_filters('litecommerce_json_search_found_product_categories', $found_product_categories, $search_text));
+    }
 
 }
