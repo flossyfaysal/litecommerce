@@ -1519,6 +1519,60 @@ class LC_AJAX
         wp_send_json(apply_filters('litecommerce_json_search_found_customers', $found_customers));
     }
 
+    public static function json_search_categories()
+    {
+        ob_start();
+
+        check_ajax_referer('search-categories', 'security');
+
+        if (!current_user_can('edit_products')) {
+            wp_die(-1);
+        }
+
+        $search_text = isset($_GET['term']) ? wc_clean(wp_unslash($_GET['term'])) : '';
+
+        if (!$search_text) {
+            wp_die();
+        }
+
+        $show_empty = isset($_GET['show_empty']) ? wp_validate_boolean(wc_clean(wp_unslash($_GET['show_empty']))) : false;
+
+        $found_categories = array();
+        $args = array(
+            'taxonomy' => array('product_cat'),
+            'orderby' => 'id',
+            'order' => 'ASC',
+            'hide_empty' => !$show_empty,
+            'fields' => 'all',
+            'name__like' => $search_text
+        );
+
+        $terms = get_terms($args);
+
+        if ($terms) {
+            foreach ($terms as $term) {
+                $term->formatted_name = '';
+
+                $ancestors = array();
+                if ($term->parent) {
+                    $ancestors = array_reverse(get_ancestors($term->term_id, 'product_cat'));
+                    foreach ($ancestors as $ancestor) {
+                        $ancestor_term = get_term($ancestor, 'product_cat');
+                        if ($ancestor_term) {
+                            $term->formatted_name .= $ancestor_term->name . ' > ';
+                        }
+                    }
+                }
+
+                $term->parents = $ancestors;
+                $term->formatted_name .= $term->name . '(' . $term->count . ')';
+                $found_categories[$term->term_id] = $term;
+            }
+        }
+
+        wp_send_json(apply_filter('litecommerce_json_search_found_categories', $found_categories));
+    }
+
 
 
 }
