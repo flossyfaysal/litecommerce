@@ -1642,6 +1642,34 @@ class LC_AJAX
         wp_send_json(apply_filters('litecommerce_json_search_found_categories', $parent_terms));
     }
 
+    public static function json_search_taxonomy_terms()
+    {
+        ob_start();
+
+        check_ajax_referer('search-taxonomy-terms', 'security');
+
+        if (!current_user_can('edit_products')) {
+            wp_die(-1);
+        }
+
+        $search_text = isset($_GET['term']) ? wc_clean(wp_unslash($_GET['term'])) : '';
+        $limit = isset($_GET['limit']) ? absint(wp_unslash($_GET['limit'])) : null;
+        $taxonomy = isset($_GET['taxonomy']) ? wc_clean(wp_unslash($_GET['taxonomy'])) : '';
+        $orderby = isset($_GET['orderby']) ? wc_clean(wp_unslash($_GET['orderby'])) : 'name';
+        $order = isset($_GET['order']) ? wc_clean(wp_unslash($_GET['order'])) : 'ASC';
+
+        $args = array(
+            'taxonomy' => $taxonomy,
+            'orderby' => $orderby,
+            'order' => $order,
+            'hide_empty' => false,
+            'fields' => 'all',
+            'number' => $limit,
+            'name__like' => $search_text,
+            'suppress_filter' => true,
+        );
+    }
+
 
 
 }
