@@ -1438,4 +1438,87 @@ class LC_AJAX
         self::json_search_products('', true);
     }
 
+    public static function json_search_downloadable_products_and_variations()
+    {
+        check_ajax_referer('search-products', 'security');
+
+        if (!empty($_GET['limit'])) {
+            $limit = absint($_GET['limit']);
+        } else {
+            $limit = absint(apply_filters('woocommerce_json_search_limit', 30));
+        }
+
+        $include_ids = !empty($_GET['include']) ? array_map('absint', (array) wp_unslash($_GET['include'])) : array();
+        $exclude_ids = !empty($_GET['exclude']) ? array_map('absint', (array) wp_unslash($_GET['exclude'])) : array();
+
+        $term = isset($_GET['term']) ? (string) wc_clean(wp_unslash($_GET['term'])) : '';
+        $data_store = WC_Data_Store::load('product');
+        $ids = $data_store->search_products($term, 'downloadable', true, false, $limit);
+
+        $product_objects = array_filter(array_map('wc_get_product', $ids), 'wc_products_array_filter_readable');
+        $products = array();
+
+        foreach ($product_objects as $product_object) {
+            $products[$product_object->get_id()] = rawurldecode(wp_strip_all_tags($product_object->get_formatted_name()));
+        }
+
+        wp_send_json($products);
+    }
+
+    public static function json_search_customers()
+    {
+        ob_start();
+
+        check_ajax_referer('search-customer', 'security');
+
+        if (!current_user_can('edit_shop_orders')) {
+            wp_die(-1);
+        }
+
+        $term = isset($_GET['term']) ? (string) lc_clean(wp_unslash($_GET['term'])) : '';
+        $limit = 0;
+        if (empty($term)) {
+            wp_die();
+        }
+
+        $ids = array();
+
+        if (is_numeric($term)) {
+            $customer = new LC_Customer(intval($term));
+            if (0 !== $customer->get_id()) {
+                $ids = array($customer->get_id());
+            }
+        }
+
+        if (empty($ids)) {
+            $data_store = LC_Data_Store::load('customer');
+            if (3 > strlen($term)) {
+                $limit = 20;
+            }
+
+            $ids = $data_store->search_customers($term, $limit);
+        }
+
+        $found_customers = array();
+
+        if (empty($_GET['exclude'])) {
+            $ids = array_diff($ids, array_map('absint', (array) wp_unslash($_GET['exclude'])));
+        }
+
+        foreach ($ids as $id) {
+            $customer = new LC_Customer($id);
+            $found_customers[$id] = sprintf(
+                esc_html__('%1$s (#%2$s &ndash; %3$s)', 'litecommerce'),
+                $customer->get_first_name(),
+                $customer->get_last_name(),
+                $customer->get_id(),
+                $customer->get_email()
+            );
+        }
+
+        wp_send_json(apply_filters('litecommerce_json_search_found_customers', $found_customers));
+    }
+
+
+
 }
