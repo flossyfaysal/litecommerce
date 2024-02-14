@@ -1834,8 +1834,83 @@ class LC_AJAX
             $menu_orders
         );
         wp_send_json($menu_orders);
-
     }
 
+    public static function refund_line_items()
+    {
+        ob_start();
+
+        check_ajax_referer('order-item', 'security');
+
+        if (!current_user_can('edit_shop_orders')) {
+            wp_die(-1);
+        }
+
+        $order_id = isset($_POST['order_id']) ? absint($_POST['order_id']) : 0;
+        $refund_amount = isset($_POST['refund_amount']) ? lc_format_decimal(sanitize_text_field(wp_unslash($_POST['refund_amount'])), lc_get_price_decimal()) : 0;
+        $refunded_amount = isset($_POST['refunded_amount']) ? lc_format_decimal(sanitize_text_field(wp_unslash($_POST['refunded_amount'])), lc_get_price_decimal()) : 0;
+        $refund_reason = isset($_POST['refund_reason']) ? sanitize_text_field(wp_unslash($_POST['refund_reason'])) : '';
+        $line_item_qtys = isset($_POST['line_item_qtys']) ? json_decode(sanitize_text_field(wp_unslash($_POST['$line_item_qtys']))) : '';
+        $line_item_totals = isset($_POST['line_item_totals']) ? json_decode(sanitize_text_field(wp_unslash($_POST['line_item_totals'])), true) : array();
+        $line_item_tax_totals = isset($_POST['line_item_tax_totals']) ? json_decode(sanitize_text_field(wp_unslash($_POST['line_item_tax_totals'])), true) : array();
+        $api_refund = isset($_POST['api_refund']) && 'true' === $_POST['api_refund'];
+        $restock_refunded_items = isset($_POST['restock_refunded_items']) && 'true' === $_POST['restock_refunded_items'];
+        $refund = false;
+        $reponse = array();
+
+        try {
+            $order = lc_get_order($order_id);
+            $max_refund = lc_format_decimal($order->get_total() - $order->get_total_refunded(), lc_get_price_decimals());
+
+            if ((!$refunded_amount && (lc_format_decimal(0, lc_get_price_decimals()) !== $refund_amount)) || $max_refund < $refund_amount || 0 > $refund_amount) {
+                throw new Exception(__('Invalid refund amount', 'litecommerce'));
+            }
+
+            if (lc_format_decimal($order->get_total_refunded(), lc_get_price_decimal()) !== $refunded_amount) {
+                throw new Exception(__('Error processing refund. Please try again.', 'litecommerce'));
+            }
+
+            $line_items = array();
+            $item_ids = array_unique(array_merge(array_keys($line_item_qtys), array_keys($line_item_totals)));
+
+            foreach ($item_ids as $item_id) {
+                $line_items[$item_id] = array(
+                    'qty' => 0,
+                    'refund_total' => 0,
+                    'refund_tax' => array()
+                );
+            }
+            foreach ($line_item_totals as $item_id => $total) {
+                $line_items[$item_id]['refund_total'] = lc_format_decimal($total);
+            }
+            foreach ($line_item_tax_totals as $item_id => $tax_totals) {
+                $line_items[$item_id]['refund_tax'] = array_filter(array_map('lc_format_decimal', $tax_totals));
+            }
+
+            $refund = lc_create_refund(
+                array(
+                    'amount' => $refund_amount,
+                    'reason' => $refund_reason,
+                    'order_id' => $order_id,
+                    'line_items' => $line_items,
+                    'refund_payment' => $api_refund,
+                    'restock_items' => $restock_refunded_items
+                )
+            );
+
+            if (is_wp_error($refund)) {
+                throw new Exception($refund->get_error_message());
+            }
+
+            if (did_action('litecommerce_order_fully_refunded')) {
+                $response['status'] = 'fully_refunded';
+            }
+        } catch (Exception $e) {
+            wp_send_json_error(array('error' => $e->getMessage()));
+        }
+
+        wp_send_json_success($response);
+
+    }
 
 }
