@@ -1764,7 +1764,7 @@ class LC_AJAX
             wp_die(0);
         }
 
-        wc_reorder_terms($terms, $next_id, $taxonomy);
+        wc_reorder_terms($term, $next_id, $taxonomy);
 
         $children = get_terms($taxonomy, "child_of=$id&menu_order=ASC&hide_empty=0");
 
@@ -1772,7 +1772,70 @@ class LC_AJAX
             echo 'children';
             wp_die();
         }
+    }
+
+    public static function product_ordering()
+    {
+        global $wpdb;
+
+        if (!current_user_can('edit_products') || empty($_POST['id'])) {
+            wp_die(-1);
+        }
+
+        $sorting_id = absint($_POST['id']);
+        $previd = absint(isset($_POST['previd'])) ? $_POST['previd'] : 0;
+        $nextid = absint(isset($_POST['nextid'])) ? $_POST['nextid'] : 0;
+        $menu_orders = wp_list_pluck($wpdb->get_results("SELECT ID, menu_order FROM {$wpdb->posts} WHERE post_type = 'product' ORDER BY menu_order ASC, post_title ASC"), 'menu_order', 'ID');
+        $index = 0;
+
+        foreach ($menu_orders as $id => $menu_order) {
+            $id = absint($id);
+            if ($sorting_id === $id) {
+                continue;
+            }
+
+            if ($nextid === $id) {
+                $index++;
+            }
+
+            $index++;
+            $menu_order[$id] = $index;
+
+            if (
+                $wpdb->update(
+                    $wpdb->posts,
+                    array(
+                        'menu_order' => $index,
+                        array('ID', $id)
+                    )
+                )
+            ) {
+                clean_post_cache($id);
+            }
+            do_action('litecommerce_after_single_product_ordering', $id, $index);
+        }
+
+        if (isset($menu_orders[$previd])) {
+            $menu_orders[$sorting_id] = $menu_orders[$previd] + 1;
+        } elseif (isset($menu_orders[$nextid])) {
+            $menu_orders[$sorting_id] = $menu_orders[$nextid] - 1;
+        } else {
+            $menu_orders[$sorting_id] = 0;
+        }
+
+        if ($wpdb->update($wpdb->posts, array('menu_order' => $menu_orders[$sorting_id]), array('ID' => $sorting_id))) {
+            clean_post_cache($sorting_id);
+        }
+
+        LC_Post_Data::delete_product_query_transients();
+        do_action(
+            'litecommerce_after_product_ordering',
+            $sorting_id,
+            $menu_orders
+        );
+        wp_send_json($menu_orders);
 
     }
+
 
 }
