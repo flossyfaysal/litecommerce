@@ -1748,4 +1748,31 @@ class LC_AJAX
         wp_send_json(apply_filters('litecommerce_json_search_found_pages', $pages_results));
     }
 
+    public static function term_ordering()
+    {
+        if (!current_user_can('edit_products') || empty($_POST['id'])) {
+            wp_die(-1);
+        }
+
+        $id = (int) $_POST['id'];
+        $next_id = isset($_POST['nextid']) && (int) $_POST['nextid'] ? (int) $_POST['nextid'] : null;
+        $taxonomy = isset($_POST['thetaxonomy']) ? esc_attr(wp_unslash($_POST['thetaxonomy'])) : null;
+
+        $term = get_term_by('id', $id, $taxonomy);
+
+        if (!$id || !$term || !$taxonomy) {
+            wp_die(0);
+        }
+
+        wc_reorder_terms($terms, $next_id, $taxonomy);
+
+        $children = get_terms($taxonomy, "child_of=$id&menu_order=ASC&hide_empty=0");
+
+        if ($term && count($children)) {
+            echo 'children';
+            wp_die();
+        }
+
+    }
+
 }
