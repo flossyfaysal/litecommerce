@@ -2046,4 +2046,54 @@ class LC_AJAX
         wp_send_json_success($response);
     }
 
+    public static function load_variations()
+    {
+        ob_start();
+
+        check_ajax_referer('load-variations', 'security');
+
+        if (!current_user_can('edit_products') || empty($_POST['product_id'])) {
+            wp_die(-1);
+        }
+
+        global $post;
+
+        $loop = 0;
+        $product_id = absint($_POST['product_id']);
+        $post = get_post($product_id);
+        $prdouct_object = lc_get_product($product_id);
+        $per_page = !empty($_POST['per_page']) ? absint($_POST['per_page']) : 10;
+        $page = !empty($_POST['page']) ? absint($_POST['page']) : 1;
+        $variations = lc_get_products(
+            array(
+                'status' => array('private', 'publish'),
+                'type' => 'variation',
+                'parent' => $product_id,
+                'limit' => $per_page,
+                'page' => $page,
+                'orderby' => array(
+                    'menu_order' => 'ASC',
+                    'ID' => 'DESC'
+                ),
+                'return' => 'objects'
+            )
+        );
+
+        if ($variations) {
+            lc_render_invalid_variation_notice($prdouct_object);
+
+            foreach ($variations as $variation_object) {
+                $variation_id = $variation_object->get_id();
+                $variation = get_post($variation_id);
+                $variation_data = array_merge(
+                    get_post_custom($variation_id),
+                    lc_get_product_variation_attributes($variation_id)
+                );
+
+                include __DIR__ . '/admin/meta-boxes/views/html-variation-admin.php';
+                $loop++;
+            }
+        }
+        wp_die();
+    }
 }
