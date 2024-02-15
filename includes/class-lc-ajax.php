@@ -1910,7 +1910,140 @@ class LC_AJAX
         }
 
         wp_send_json_success($response);
+    }
 
+    public static function delete_refund()
+    {
+        check_ajax_referer('order-item', 'security');
+
+        if (!current_user_can('edit_shop_orders') || !isset($_POST['refund_id'])) {
+            wp_die(-1);
+        }
+
+        $refund_ids = array_map('absint', is_array($_POST['refund_id']) ? wp_unslash($_POST['refund_id']) : array(wp_unslash($_POST['refund_id'])));
+
+        foreach ($refund_ids as $refund_id) {
+            if ($refund_id && 'shop_order_refund' === OrderUtil::get_order_type($refund_id)) {
+                $refund = lc_get_order($refund_id);
+                $order_id = $refund->get_parent_id();
+                $refund->delete(true);
+                do_action('litecommerce_refund_deleted', $refund_id, $order_id);
+            }
+        }
+        wp_die();
+    }
+
+    public static function rated()
+    {
+        if (!current_user_can('manage_woocommerce')) {
+            wp_die(-1);
+        }
+
+        update_option('litecommerce_admin_footer_text_rated', 1);
+        wp_die();
+    }
+
+    public static function update_api_key()
+    {
+        ob_start();
+
+        global $wpdb;
+
+        check_ajax_referer('update-api-key', 'security');
+
+        if (!current_user_can('manage_woocommerce')) {
+            wp_die(-1);
+        }
+
+        $response = array();
+
+        try {
+            if (empty($_POST['description'])) {
+                throw new Exception(__('Description is missing.', 'litecommerce'));
+            }
+            if (empty($_POST['user'])) {
+                throw new Exception(__('User is missing.', 'litecommerce'));
+            }
+            if (empty($_POST['permissions'])) {
+                throw new Exception(__('Permission is missing.', 'litecommerce'));
+            }
+
+            $key_id = isset($_POST['key_id']) ? absint($_POST['key_id']) : 0;
+            $description = sanitize_text_field(wp_unslash($_POST['description']));
+            $permissions = (in_array(wp_unslash($_POST['permissions']), array('read', 'write', 'read_write'), true)) ? sanitize_text_field(wp_unslash($_POST['permissions'])) : 'read';
+            $user_id = absint($_POST['user']);
+
+            if ($user_id && !current_user_can('edit_user', $user_id)) {
+                if (get_current_user_id() !== $user_id) {
+                    throw new Exception(__('You do not have permission to assign API keys to the selected user.', 'litecommerce'));
+                }
+            }
+
+            if (0 < $key_id) {
+                $data = array(
+                    'user_id' => $user_id,
+                    'description' => $description,
+                    'permissions' => $permissions
+                );
+
+                $wpdb->update(
+                    $wpdb->prefix . 'litecommerce_api_keys',
+                    $data,
+                    array('key_id' => $key_id),
+                    array(
+                        '%d',
+                        '%s',
+                        '%s',
+                    ),
+                    array('%d')
+                );
+
+                $response = $data;
+                $response['consumer_key'] = '';
+                $response['consumer_secret'] = '';
+                $response['message'] = __('API Key updated successfullly.', 'litecommerce');
+            } else {
+                $consumer_key = 'ck_' . lc_rand_hash();
+                $consumer_secret = 'cs_' . lc_rand_hash();
+
+                $data = array(
+                    'user_id' => $user_id,
+                    'description' => $description,
+                    'permissions' => $permissions,
+                    'consumer_key' => lc_api_hash($consumer_key),
+                    'consumer_secret' => $consumer_secret,
+                    'truncated_key' => substr($consumer_key, -7),
+                );
+
+                $wpdb->update(
+                    $wpdb->prefix .
+                    'litecommerce_api_keys',
+                    $data,
+                    array(
+                        '%d',
+                        '%s',
+                        '%s',
+                        '%s',
+                        '%s',
+                        '%s',
+                    )
+                );
+
+                if (0 === $wpdb->insert_id) {
+                    throw new Exception(__('There was an error generating your API key.', 'litecommerce'));
+                }
+
+                $key_id = $wpdb->insert_id;
+                $response = $data;
+                $response['consumer_key'] = $consumer_key;
+                $response['consumer_secret'] = $consumer_secret;
+                $response['message'] = __('API Key generated successfully. Make sure to copy your new keys now as the secret key will be hidden once you leave this page.', 'woocommerce');
+                $response['revoke_url'] = '<a style="color: #a00; text-decoration: none;" href="' . esc_url(wp_nonce_url(add_query_arg(array('revoke-key' => $key_id), admin_url('admin.php?page=wc-settings&tab=advanced&section=keys')), 'revoke')) . '">' . __('Revoke key', 'woocommerce') . '</a>';
+            }
+        } catch (Exception $e) {
+            wp_send_json_error(array('message' => $e->getMessage()));
+        }
+        wp_send_json_success($response);
     }
 
 }
