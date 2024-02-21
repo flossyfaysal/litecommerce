@@ -601,6 +601,30 @@ abstract class LC_Abstract_Order extends LC_Abstract_Legacy_Order
         $this->items_to_delete[] = $item;
         unset($this->items[$items_key][$item->get_id()]);
     }
+
+    public function add_item($item)
+    {
+        $items_key = $this->get_items_key($item);
+
+        if (!$items_key) {
+            return false;
+        }
+
+        if (!isset($this->items[$items_key])) {
+            $this->items[$items_key] = $this->get_items($item->get_type());
+        }
+
+        $item->set_order_id($this->get_id());
+        $item_id = $item->get_id();
+
+        if ($item_id) {
+            $this->items[$items_key][$item_id] = $item;
+        } else {
+            $this->items[$items_key]['new:' . $items_key . count($this->items[$items_key])] = $item;
+        }
+    }
+
+
 }
 
 
