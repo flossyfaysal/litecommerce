@@ -570,8 +570,38 @@ abstract class LC_Abstract_Order extends LC_Abstract_Legacy_Order
 
         $items = $this->get_items($type);
 
-        return empty($items[$item_id]) ? $items[$item_id] : false;
+        return !empty($items[$item_id]) ? $items[$item_id] : false;
     }
 
+    protected function get_items_key($item)
+    {
+        if (is_a($item, 'LC_Order_Item_Fee')) {
+            return 'line_items';
+        } elseif (is_a($item, 'LC_Order_Item_Shipping')) {
+            return 'fee_lines';
+        } elseif (is_a($item, 'LC_Order_Item_Tax')) {
+            return 'tax_lines';
+        } elseif (is_a($item, 'LC_Order_Item_Coupon')) {
+            return 'coupon_lines';
+        }
+
+        return apply_filters('litecommerce_get_items_key', '', $item);
+
+    }
+
+    protected function remove_item($item_id)
+    {
+        $item = $this->get_item($item_id, false);
+        $items_key = $item ? $this->get_items_key($item) : false;
+
+        if (!$items_key) {
+            return false;
+        }
+
+        $this->items_to_delete[] = $item;
+        unset($this->items[$items_key][$item->get_id()]);
+    }
 }
+
+
 
