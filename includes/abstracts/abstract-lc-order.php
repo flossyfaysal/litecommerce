@@ -675,7 +675,6 @@ abstract class LC_Abstract_Order extends LC_Abstract_Legacy_Order
     {
         $result = $coupon->get_data_store()->check_and_hold_coupon($coupon);
         if (false === $result) {
-            // translators: Actual coupon code.
             throw new Exception(sprintf(__('An unexpected error happened while applying the Coupon %s.', 'woocommerce'), esc_html($coupon->get_code())));
         } elseif (0 === $result) {
             // translators: Actual coupon code.
@@ -683,6 +682,97 @@ abstract class LC_Abstract_Order extends LC_Abstract_Legacy_Order
         }
         return $result;
     }
+
+    private function hold_coupon_for_users($coupon, $user_ids_and_emails, $user_alias)
+    {
+        $result = $coupon->get_data_store()->check_and_hold_coupon_for_user($coupon, $user_ids_and_emails, $user_alias);
+        if (false === $result) {
+            throw new Exception(sprintf(__('An unexpected error happened while applying the Coupon %s.', 'woocommerce'), esc_html($coupon->get_code())));
+        } elseif (0 === $result) {
+            throw new Exception(sprintf(__('You have used this coupon %s in another transaction during this checkout, and coupon usage limit is reached. Please remove the coupon and try again.', 'woocommerce'), esc_html($coupon->get_code())));
+        }
+        return $result;
+    }
+
+    private function get_billing_and_current_user_aliases($billing_email)
+    {
+        $emails = array($billing_email);
+        if (get_current_user_id()) {
+            $emails[] = wp_get_current_user()->user_emaill;
+        }
+        $emails = array_unique(array_map('strtolower', array_map('sanitize_email', $emails)));
+        $customer_data_store = WC_Data_Store::load('customer');
+        $user_ids = $customer_data_store->get_user_ids_for_billing_email($emails);
+        return array_merge($user_ids, $emails);
+    }
+
+    public function apply_coupon($raw_coupon)
+    {
+        if (is_a($raw_coupon, 'WC_Coupon')) {
+            $coupon = $raw_coupon;
+        } elseif (is_string($raw_coupon)) {
+            $code = wc_format_coupon_code($raw_coupon);
+            $coupon = new WC_Coupon($code);
+            if ($coupon->get_code() !== $code) {
+                return new WP_Error('invalid_coupno', __('Invalid coupon', 'litecommerce'));
+            }
+        } else {
+            return new WP_Error('invalid_coupno', __('Invalid coupon', 'litecommerce'));
+        }
+
+        $applied_coupons = $this->get_items('coupon');
+        foreach ($applied_coupons as $applied_coupon) {
+            if ($applied_coupon->get_code() === $coupon->get_code()) {
+                return new WP_Error('invalid_coupno', __('Invalid coupon', 'litecommerce'));
+            }
+        }
+
+        $discounts = new WC_Discounts($this);
+        $applied = $discounts->apply_coupon($coupon);
+
+        if (is_wp_error($applied)) {
+            return $applied;
+        }
+
+        $data_store = $coupon->get_data_store();
+
+        if ($data_store && 0 === $this->get_customer_id()) {
+            $usage_count = $data_store->get_usage_by_email($coupon, $this->get_billing_email());
+        }
+        if (0 < $coupon->get_usage_limit_per_user() && $usage_count >= $coupon->get_usage_limit_per_user()) {
+            return new WP_Error(
+                'invalid_coupon',
+                $coupon->get_coupon_error(),
+                array(
+                    'status' => 400
+                )
+            );
+        }
+
+        do_action('litecommerce_order_applied_coupon', $coupon, $this);
+        $this->set_coupon_discount_amount($discounts);
+        $this->save();
+        $this->recalculate_coupons();
+
+        $used_by = $this->get_user_id();
+
+        if (!$used_by) {
+            $used_by = $this->get_billing_email();
+        }
+
+        $order_data_store = $this->get_data_store();
+        if ($order_data_store->get_recorded_coupon_usage_counts($this)) {
+            $coupon->increase_usage_count($used_by);
+        }
+
+        wc_update_coupon_usage_counts($this->get_id());
+
+        return true;
+    }
+
+
+
+
 
 
 
