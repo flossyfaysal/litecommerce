@@ -624,6 +624,59 @@ abstract class LC_Abstract_Order extends LC_Abstract_Legacy_Order
         }
     }
 
+    public function hold_applied_coupons($billing_email)
+    {
+        $held_keys = array();
+        $held_keys_for_user = array();
+        $error = null;
+
+        try {
+            foreach (LC()->cart->get_applied_coupons() as $code) {
+                $coupon = new WC_Coupon($code);
+
+                if (!$coupon->get_data_store()) {
+                    continue;
+                }
+
+                if (0 < $coupon->get_usage_limit()) {
+                    $held_key = $this->hold_coupon($coupon);
+                    if ($held_key) {
+                        $held_keys[$coupon->get_id()] = $held_key;
+                    }
+                }
+
+                if (0 < $coupon->get_usage_limit_per_user()) {
+                    if (!isset($user_ids_and_emails)) {
+                        $user_alias = get_current_user_id() ? wp_get_current_user()->ID : sanitize_email($billing_email);
+                        $user_ids_and_emails = $this->get_billing_and_current_user_aliases($billing_email);
+                    }
+
+                    $held_key_for_user = $this->hold_coupon_for_users($coupon, $user_ids_and_emails, $user_alias);
+
+                    if ($held_key_for_user) {
+                        $held_keys_for_user[$coupon->get_id()] = $held_key_for_user;
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            $error = $e;
+        } finally {
+            if (0 < count($held_keys_for_user) || 0 < count($held_keys)) {
+                $this->get_data_store()->set_coupon_held_keys($this, $held_keys, $held_keys_for_user);
+            }
+
+            if ($error instanceof Exception) {
+                throw $error;
+            }
+        }
+    }
+
+    private function hold_coupon($coupon)
+    {
+
+    }
+
+
 
 }
 
